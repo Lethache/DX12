@@ -20,6 +20,7 @@ Renderer::Renderer()
     m_fenceValue = 0;
     m_frameIndex = 0;
     m_rtvDescriptorSize = 0;
+    m_initialized = false;
 }
 
 Renderer::~Renderer()
@@ -51,6 +52,8 @@ void Renderer::ConfigurePipeline(
     m_factory->MakeWindowAssociation(
         _hwnd,
         DXGI_MWA_NO_ALT_ENTER);
+
+    m_initialized = true;
 }
 
 UINT Renderer::EnableDebugLayer()
@@ -66,7 +69,8 @@ UINT Renderer::EnableDebugLayer()
     {
         debugController->EnableDebugLayer();
 
-        dxgiFactoryFlags |= DXGI_CREATE_FACTORY_DEBUG;
+        dxgiFactoryFlags |=
+            DXGI_CREATE_FACTORY_DEBUG;
     }
 
 #endif
@@ -111,7 +115,8 @@ void Renderer::CreateDevice(bool _userWarpDevice)
 
 void Renderer::GetHardwareAdapter(
     _In_ IDXGIFactory1* _factory,
-    _Outptr_result_maybenull_ IDXGIAdapter1** _adapter,
+    _Outptr_result_maybenull_
+    IDXGIAdapter1** _adapter,
     bool _reqHighPerfAdapter)
 {
     *_adapter = nullptr;
@@ -144,7 +149,8 @@ void Renderer::GetHardwareAdapter(
             DXGI_ADAPTER_DESC1 desc;
             adapter->GetDesc1(&desc);
 
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            if (desc.Flags &
+                DXGI_ADAPTER_FLAG_SOFTWARE)
             {
                 continue;
             }
@@ -173,7 +179,8 @@ void Renderer::GetHardwareAdapter(
             DXGI_ADAPTER_DESC1 desc;
             adapter->GetDesc1(&desc);
 
-            if (desc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE)
+            if (desc.Flags &
+                DXGI_ADAPTER_FLAG_SOFTWARE)
             {
                 continue;
             }
@@ -221,6 +228,7 @@ void Renderer::CreateSwapChain(
     swapChainDesc.BufferCount = m_frameCount;
     swapChainDesc.Width = _wWidth;
     swapChainDesc.Height = _wHeight;
+
     swapChainDesc.Format =
         DXGI_FORMAT_R8G8B8A8_UNORM;
 
@@ -345,4 +353,133 @@ void Renderer::CreateFence()
     M_ASSERT(
         m_fenceEvent != nullptr,
         "Failed to create fence event");
+}
+
+void Renderer::Render()
+{
+    if (!m_initialized)
+    {
+        return;
+    }
+
+    PopulateCommandList();
+
+    ID3D12CommandList* ppCommandLists[] =
+    {
+        m_commandList.Get()
+    };
+
+    m_commandQueue->ExecuteCommandLists(
+        _countof(ppCommandLists),
+        ppCommandLists);
+
+    M_ASSERT(
+        SUCCEEDED(m_swapChain->Present(1, 0)),
+        "Failed to present swapchain.");
+
+    WaitForPreviousFrame();
+}
+
+void Renderer::Destroy()
+{
+    // Ensure that the GPU is no longer referencing
+    // resources that are about to be cleaned up.
+    WaitForPreviousFrame();
+
+    CloseHandle(m_fenceEvent);
+}
+
+void Renderer::PopulateCommandList()
+{
+    // Reset only after fence allows.
+    M_ASSERT(
+        SUCCEEDED(m_commandAllocator->Reset()),
+        "Failed to reset command allocator.");
+
+    M_ASSERT(
+        SUCCEEDED(m_commandList->Reset(
+            m_commandAllocator.Get(),
+            nullptr)),
+        "Failed to reset command list.");
+
+    auto barrier =
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_renderTargets[m_frameIndex].Get(),
+            D3D12_RESOURCE_STATE_PRESENT,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+    m_commandList->ResourceBarrier(
+        1,
+        &barrier);
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
+        m_rtvHeap->
+        GetCPUDescriptorHandleForHeapStart(),
+        m_frameIndex,
+        m_rtvDescriptorSize);
+
+    m_commandList->OMSetRenderTargets(
+        1,
+        &rtvHandle,
+        FALSE,
+        nullptr);
+
+    const float clearColor[] =
+    {
+        0.0f,
+        0.2f,
+        0.4f,
+        1.0f
+    };
+
+    m_commandList->ClearRenderTargetView(
+        rtvHandle,
+        clearColor,
+        0,
+        nullptr);
+
+    barrier =
+        CD3DX12_RESOURCE_BARRIER::Transition(
+            m_renderTargets[m_frameIndex].Get(),
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_PRESENT);
+
+    m_commandList->ResourceBarrier(
+        1,
+        &barrier);
+
+    M_ASSERT(
+        SUCCEEDED(m_commandList->Close()),
+        "Failed to close command list.");
+}
+
+void Renderer::WaitForPreviousFrame()
+{
+    // Waiting for every frame is not best practice.
+    // Signal and increment the fence value.
+    const UINT64 fence = m_fenceValue;
+
+    M_ASSERT(
+        SUCCEEDED(m_commandQueue->Signal(
+            m_fence.Get(),
+            fence)),
+        "Failed to signal fence.");
+
+    m_fenceValue++;
+
+    if (m_fence->GetCompletedValue() < fence)
+    {
+        M_ASSERT(
+            SUCCEEDED(m_fence->SetEventOnCompletion(
+                fence,
+                m_fenceEvent)),
+            "Failed to set fence complete.");
+
+        WaitForSingleObject(
+            m_fenceEvent,
+            INFINITE);
+    }
+
+    m_frameIndex =
+        m_swapChain->GetCurrentBackBufferIndex();
 }

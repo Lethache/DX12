@@ -18,7 +18,8 @@ int WINAPI main(
         nShowCmd,
         WindowMode::WINDOWED);
 
-    Renderer* r = &Renderer::GetInstance();
+    Renderer* r =
+        &Renderer::GetInstance();
 
     r->ConfigurePipeline(
         false,
@@ -29,10 +30,14 @@ int WINAPI main(
     // Some temporary debug output
     DXGI_SWAP_CHAIN_DESC scDesc;
 
-    r->GetSwapChain().Get()->GetDesc(&scDesc);
+    r->GetSwapChain()
+        .Get()
+        ->GetDesc(&scDesc);
 
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc =
-        r->GetRTVHeap().Get()->GetDesc();
+        r->GetRTVHeap()
+        .Get()
+        ->GetDesc();
 
     std::cout
         << "Window Controller: Window - "
@@ -62,4 +67,8 @@ int WINAPI main(
             DispatchMessage(&msg);
         }
     }
+
+    r->Destroy();
+
+    return 0;
 }

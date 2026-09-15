@@ -32,14 +32,20 @@ public:
         int _wWidth,
         int _wHeight);
 
+    void Render();
+    void Destroy();
+
 private:
     // Methods
     UINT EnableDebugLayer();
-    void CreateDevice(bool _userWarpDevice);
+
+    void CreateDevice(
+        bool _userWarpDevice);
 
     void GetHardwareAdapter(
         _In_ IDXGIFactory1* _factory,
-        _Outptr_result_maybenull_ IDXGIAdapter1** _adapter,
+        _Outptr_result_maybenull_
+        IDXGIAdapter1** _adapter,
         bool reqHighPerfAdapter = false);
 
     void CreateCommandQueue();
@@ -52,6 +58,8 @@ private:
     void CreateRenderTargetView();
     void CreateCommands();
     void CreateFence();
+    void PopulateCommandList();
+    void WaitForPreviousFrame();
 
     // Members
     static const UINT m_frameCount = 2;
@@ -61,13 +69,22 @@ private:
     ComPtr<ID3D12CommandQueue> m_commandQueue;
     ComPtr<IDXGISwapChain3> m_swapChain;
     ComPtr<ID3D12DescriptorHeap> m_rtvHeap;
-    ComPtr<ID3D12Resource> m_renderTargets[m_frameCount];
-    ComPtr<ID3D12CommandAllocator> m_commandAllocator;
-    ComPtr<ID3D12GraphicsCommandList> m_commandList;
+
+    ComPtr<ID3D12Resource>
+        m_renderTargets[m_frameCount];
+
+    ComPtr<ID3D12CommandAllocator>
+        m_commandAllocator;
+
+    ComPtr<ID3D12GraphicsCommandList>
+        m_commandList;
+
     ComPtr<ID3D12Fence> m_fence;
 
     UINT m_frameIndex;
     UINT m_rtvDescriptorSize;
     UINT64 m_fenceValue;
     HANDLE m_fenceEvent;
+
+    bool m_initialized;
 };

@@ -1,4 +1,5 @@
 #include "WindowController.h"
+#include "Renderer.h"
 
 WindowController::WindowController()
 {
@@ -22,12 +23,17 @@ void WindowController::Create(
     WindowMode _mode)
 {
     RegClass(_hInstance);
-    Initialize(_hInstance, _showWnd, _mode);
+    Initialize(
+        _hInstance,
+        _showWnd,
+        _mode);
 }
 
-void WindowController::RegClass(HINSTANCE _hInstance)
+void WindowController::RegClass(
+    HINSTANCE _hInstance)
 {
     m_wClass.cbSize = sizeof(WNDCLASSEX);
+
     m_wClass.style =
         WS_VISIBLE |
         WS_CLIPCHILDREN |
@@ -37,15 +43,22 @@ void WindowController::RegClass(HINSTANCE _hInstance)
     m_wClass.cbClsExtra = 0;
     m_wClass.cbWndExtra = 0;
     m_wClass.hInstance = _hInstance;
-    m_wClass.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    m_wClass.hCursor = LoadCursor(nullptr, IDC_ARROW);
+
+    m_wClass.hIcon =
+        LoadIcon(nullptr, IDI_APPLICATION);
+
+    m_wClass.hCursor =
+        LoadCursor(nullptr, IDC_ARROW);
 
     m_wClass.hbrBackground =
-        reinterpret_cast<HBRUSH>(COLOR_WINDOW + 2);
+        reinterpret_cast<HBRUSH>(
+            COLOR_WINDOW + 2);
 
     m_wClass.lpszMenuName = nullptr;
     m_wClass.lpszClassName = m_wClassName;
-    m_wClass.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+
+    m_wClass.hIconSm =
+        LoadIcon(nullptr, IDI_APPLICATION);
 
     M_ASSERT(
         RegisterClassEx(&m_wClass),
@@ -184,14 +197,21 @@ LRESULT CALLBACK WndProc(
     {
     case WM_DESTROY:
         PostQuitMessage(0);
-        return 0;
+        break;
 
     case WM_KEYUP:
         if (_wParam == VK_ESCAPE)
         {
             PostQuitMessage(0);
-            return 0;
         }
+        else
+        {
+            processed = false;
+        }
+        break;
+
+    case WM_PAINT:
+        Renderer::GetInstance().Render();
         break;
 
     default:
