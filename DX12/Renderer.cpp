@@ -25,6 +25,7 @@ Renderer::Renderer()
 
 Renderer::~Renderer()
 {
+    Destroy();
 }
 
 void Renderer::ConfigurePipeline(

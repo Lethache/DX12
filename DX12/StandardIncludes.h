@@ -6,6 +6,10 @@
 #include <Windows.h>
 #include <algorithm>
 #include <wrl.h>
+#include <iostream>
+
+using Microsoft::WRL::ComPtr;
+using namespace std;
 
 // DirectX12
 #include <d3d12.h>
@@ -13,7 +17,8 @@
 
 #include "Singleton.h"
 #include "include/d3dx12/d3dx12.h"
-
+#include "WindowController.h"
+#include "Renderer.h"
 using Microsoft::WRL::ComPtr;
 using namespace std;
 #define M_ASSERT(_cond, _msg) \
