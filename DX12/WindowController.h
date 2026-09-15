@@ -5,6 +5,7 @@
 
 #include "StandardIncludes.h"
 
+
 LRESULT CALLBACK WndProc(
     HWND hWnd,
     UINT message,
@@ -27,11 +28,17 @@ public:
     WindowController();
     virtual ~WindowController() {}
 
+    // Accessors
+    HWND GetHWND() const { return m_hwnd; }
+    int GetWindowWidth() const { return m_windowWidth; }
+    int GetWindowHeight() const { return m_windowHeight; }
+
     // Methods
     void Create(
         HINSTANCE _hInstance,
         int _showWnd,
         WindowMode _mode
+
     );
 
 private:
@@ -51,7 +58,7 @@ private:
     LPCWSTR m_wClassName;
     LPCWSTR m_wTitle;
     WNDCLASSEX m_wClass;
-    HWND m_hWnd;
+    HWND m_hwnd;
     WindowMode m_windowMode;
 
     int m_windowPosX;

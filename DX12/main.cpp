@@ -19,21 +19,47 @@ int WINAPI main(
         WindowMode::WINDOWED);
 
     Renderer* r = &Renderer::GetInstance();
-    r->ConfigurePipeline(false);
 
-    const char* byte_addr =
-        reinterpret_cast<const char*>(
-            r->GetDevice().Get());
+    r->ConfigurePipeline(
+        false,
+        wc->GetHWND(),
+        wc->GetWindowWidth(),
+        wc->GetWindowHeight());
 
-    std::cout <<
-        static_cast<const void*>(byte_addr);
+    // Some temporary debug output
+    DXGI_SWAP_CHAIN_DESC scDesc;
+
+    r->GetSwapChain().Get()->GetDesc(&scDesc);
+
+    D3D12_DESCRIPTOR_HEAP_DESC heapDesc =
+        r->GetRTVHeap().Get()->GetDesc();
+
+    std::cout
+        << "Window Controller: Window - "
+        << wc->GetHWND()
+        << "\n"
+        << "Swapchain: Buffer count - "
+        << to_string(scDesc.BufferCount)
+        << "; Window - "
+        << scDesc.OutputWindow
+        << "\n"
+        << "RTV Heap: Number of descriptors - "
+        << heapDesc.NumDescriptors;
 
     // Main message loop
     MSG msg = {};
 
-    while (GetMessage(&msg, nullptr, 0, 0))
+    while (msg.message != WM_QUIT)
     {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
+        if (PeekMessage(
+            &msg,
+            NULL,
+            0,
+            0,
+            PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
     }
 }
