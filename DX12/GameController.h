@@ -1,8 +1,10 @@
 #pragma once
 
 #include "StandardIncludes.h"
+#include "ToolsController.h"
 
-class GameController : public Singleton<GameController>
+class GameController :
+    public Singleton<GameController>
 {
 public:
     // Constructors / Destructors
@@ -19,4 +21,5 @@ public:
 private:
     WindowController* m_windowC;
     Renderer* m_renderer;
+    ToolsController* m_toolsC;
 };

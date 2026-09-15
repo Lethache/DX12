@@ -21,6 +21,13 @@ Renderer::Renderer()
     m_frameIndex = 0;
     m_rtvDescriptorSize = 0;
     m_initialized = false;
+
+    memset(
+        m_bgColor,
+        0,
+        sizeof(float) * 4);
+
+    m_bgColor[3] = 1.0f;
 }
 
 Renderer::~Renderer()
@@ -44,15 +51,21 @@ void Renderer::ConfigurePipeline(
 
     CreateDevice(_userWarpDevice);
     CreateCommandQueue();
-    CreateSwapChain(_hwnd, _wWidth, _wHeight);
+    CreateSwapChain(
+        _hwnd,
+        _wWidth,
+        _wHeight);
+
     CreateRenderTargetView();
     CreateCommands();
     CreateFence();
 
-    // Do not support fullscreen transitions yet
-    m_factory->MakeWindowAssociation(
-        _hwnd,
-        DXGI_MWA_NO_ALT_ENTER);
+    // Do not support fullscreen transitions yet.
+    M_ASSERT(
+        SUCCEEDED(m_factory->MakeWindowAssociation(
+            _hwnd,
+            DXGI_MWA_NO_ALT_ENTER)),
+        "Failed to create window association");
 
     m_initialized = true;
 }
@@ -79,7 +92,8 @@ UINT Renderer::EnableDebugLayer()
     return dxgiFactoryFlags;
 }
 
-void Renderer::CreateDevice(bool _userWarpDevice)
+void Renderer::CreateDevice(
+    bool _userWarpDevice)
 {
     if (_userWarpDevice)
     {
@@ -106,6 +120,10 @@ void Renderer::CreateDevice(bool _userWarpDevice)
             &hardwareAdapter);
 
         M_ASSERT(
+            hardwareAdapter != nullptr,
+            "Hardware adapter was not found");
+
+        M_ASSERT(
             SUCCEEDED(D3D12CreateDevice(
                 hardwareAdapter.Get(),
                 D3D_FEATURE_LEVEL_11_0,
@@ -129,13 +147,13 @@ void Renderer::GetHardwareAdapter(
         _factory->QueryInterface(
             IID_PPV_ARGS(&factory6))))
     {
-        DXGI_GPU_PREFERENCE gpuPref =
-            DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE;
+        DXGI_GPU_PREFERENCE gpuPreference =
+            DXGI_GPU_PREFERENCE_UNSPECIFIED;
 
         if (_reqHighPerfAdapter)
         {
-            gpuPref =
-                DXGI_GPU_PREFERENCE_UNSPECIFIED;
+            gpuPreference =
+                DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE;
         }
 
         for (
@@ -143,16 +161,17 @@ void Renderer::GetHardwareAdapter(
             SUCCEEDED(
                 factory6->EnumAdapterByGpuPreference(
                     adapterIndex,
-                    gpuPref,
+                    gpuPreference,
                     IID_PPV_ARGS(&adapter)));
             ++adapterIndex)
         {
-            DXGI_ADAPTER_DESC1 desc;
+            DXGI_ADAPTER_DESC1 desc = {};
             adapter->GetDesc1(&desc);
 
             if (desc.Flags &
                 DXGI_ADAPTER_FLAG_SOFTWARE)
             {
+                adapter.Reset();
                 continue;
             }
 
@@ -164,10 +183,12 @@ void Renderer::GetHardwareAdapter(
             {
                 break;
             }
+
+            adapter.Reset();
         }
     }
 
-    if (adapter.Get() == nullptr)
+    if (adapter == nullptr)
     {
         for (
             UINT adapterIndex = 0;
@@ -177,12 +198,13 @@ void Renderer::GetHardwareAdapter(
                     &adapter));
                     ++adapterIndex)
         {
-            DXGI_ADAPTER_DESC1 desc;
+            DXGI_ADAPTER_DESC1 desc = {};
             adapter->GetDesc1(&desc);
 
             if (desc.Flags &
                 DXGI_ADAPTER_FLAG_SOFTWARE)
             {
+                adapter.Reset();
                 continue;
             }
 
@@ -194,6 +216,8 @@ void Renderer::GetHardwareAdapter(
             {
                 break;
             }
+
+            adapter.Reset();
         }
     }
 
@@ -202,7 +226,6 @@ void Renderer::GetHardwareAdapter(
 
 void Renderer::CreateCommandQueue()
 {
-    // Describe and create the command queue.
     D3D12_COMMAND_QUEUE_DESC queueDesc = {};
 
     queueDesc.Flags =
@@ -223,12 +246,16 @@ void Renderer::CreateSwapChain(
     int _wWidth,
     int _wHeight)
 {
-    // Describe and create the swap chain.
     DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
 
-    swapChainDesc.BufferCount = m_frameCount;
-    swapChainDesc.Width = _wWidth;
-    swapChainDesc.Height = _wHeight;
+    swapChainDesc.BufferCount =
+        m_frameCount;
+
+    swapChainDesc.Width =
+        static_cast<UINT>(_wWidth);
+
+    swapChainDesc.Height =
+        static_cast<UINT>(_wHeight);
 
     swapChainDesc.Format =
         DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -263,10 +290,10 @@ void Renderer::CreateSwapChain(
 
 void Renderer::CreateRenderTargetView()
 {
-    // Describe and create an RTV descriptor heap.
     D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
 
-    rtvHeapDesc.NumDescriptors = m_frameCount;
+    rtvHeapDesc.NumDescriptors =
+        m_frameCount;
 
     rtvHeapDesc.Type =
         D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
@@ -284,7 +311,6 @@ void Renderer::CreateRenderTargetView()
         m_device->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-    // Create an RTV for each frame.
     CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
         m_rtvHeap->
         GetCPUDescriptorHandleForHeapStart());
@@ -325,9 +351,8 @@ void Renderer::CreateCommands()
             IID_PPV_ARGS(&m_commandList))),
         "Failed to create command list");
 
-    // Command lists are created in the recording state,
-    // but there is nothing to record yet.
-    // The main loop expects it to be closed.
+    // Command lists are created in the recording state.
+    // The main loop expects the list to be closed.
     M_ASSERT(
         SUCCEEDED(m_commandList->Close()),
         "Failed to close command list");
@@ -344,7 +369,6 @@ void Renderer::CreateFence()
 
     m_fenceValue = 1;
 
-    // Create an event handle for frame synchronization.
     m_fenceEvent = CreateEvent(
         nullptr,
         FALSE,
@@ -365,17 +389,19 @@ void Renderer::Render()
 
     PopulateCommandList();
 
-    ID3D12CommandList* ppCommandLists[] =
+    ID3D12CommandList* commandLists[] =
     {
         m_commandList.Get()
     };
 
     m_commandQueue->ExecuteCommandLists(
-        _countof(ppCommandLists),
-        ppCommandLists);
+        _countof(commandLists),
+        commandLists);
 
     M_ASSERT(
-        SUCCEEDED(m_swapChain->Present(1, 0)),
+        SUCCEEDED(m_swapChain->Present(
+            1,
+            0)),
         "Failed to present swapchain.");
 
     WaitForPreviousFrame();
@@ -383,16 +409,24 @@ void Renderer::Render()
 
 void Renderer::Destroy()
 {
-    // Ensure that the GPU is no longer referencing
-    // resources that are about to be cleaned up.
+    if (!m_initialized)
+    {
+        return;
+    }
+
     WaitForPreviousFrame();
 
-    CloseHandle(m_fenceEvent);
+    if (m_fenceEvent != nullptr)
+    {
+        CloseHandle(m_fenceEvent);
+        m_fenceEvent = nullptr;
+    }
+
+    m_initialized = false;
 }
 
 void Renderer::PopulateCommandList()
 {
-    // Reset only after fence allows.
     M_ASSERT(
         SUCCEEDED(m_commandAllocator->Reset()),
         "Failed to reset command allocator.");
@@ -403,7 +437,7 @@ void Renderer::PopulateCommandList()
             nullptr)),
         "Failed to reset command list.");
 
-    auto barrier =
+    CD3DX12_RESOURCE_BARRIER barrier =
         CD3DX12_RESOURCE_BARRIER::Transition(
             m_renderTargets[m_frameIndex].Get(),
             D3D12_RESOURCE_STATE_PRESENT,
@@ -425,17 +459,10 @@ void Renderer::PopulateCommandList()
         FALSE,
         nullptr);
 
-    const float clearColor[] =
-    {
-        0.0f,
-        0.2f,
-        0.4f,
-        1.0f
-    };
-
+    // The background colour comes from ToolsForm.
     m_commandList->ClearRenderTargetView(
         rtvHandle,
-        clearColor,
+        m_bgColor,
         0,
         nullptr);
 
@@ -456,9 +483,8 @@ void Renderer::PopulateCommandList()
 
 void Renderer::WaitForPreviousFrame()
 {
-    // Waiting for every frame is not best practice.
-    // Signal and increment the fence value.
-    const UINT64 fence = m_fenceValue;
+    const UINT64 fence =
+        m_fenceValue;
 
     M_ASSERT(
         SUCCEEDED(m_commandQueue->Signal(
@@ -482,5 +508,6 @@ void Renderer::WaitForPreviousFrame()
     }
 
     m_frameIndex =
-        m_swapChain->GetCurrentBackBufferIndex();
+        m_swapChain->
+        GetCurrentBackBufferIndex();
 }

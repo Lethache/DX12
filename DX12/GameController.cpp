@@ -4,6 +4,7 @@ GameController::GameController()
 {
     m_windowC = nullptr;
     m_renderer = nullptr;
+    m_toolsC = nullptr;
 }
 
 GameController::~GameController()
@@ -30,18 +31,24 @@ void GameController::Initialize(
         m_windowC->GetHWND(),
         m_windowC->GetWindowWidth(),
         m_windowC->GetWindowHeight());
+
+    m_toolsC =
+        &ToolsController::GetInstance();
+
+    m_toolsC->LoadToolsLibrary();
 }
 
 void GameController::Run()
 {
-    // Main message loop
+    m_toolsC->ShowForm();
+
     MSG msg = {};
 
     while (msg.message != WM_QUIT)
     {
-        if (PeekMessage(
+        while (PeekMessage(
             &msg,
-            NULL,
+            nullptr,
             0,
             0,
             PM_REMOVE))
@@ -49,5 +56,22 @@ void GameController::Run()
             TranslateMessage(&msg);
             DispatchMessage(&msg);
         }
+
+        m_renderer->GetBGColor()[0] =
+            static_cast<float>(
+                m_toolsC->GetRedData());
+
+        m_renderer->GetBGColor()[1] =
+            static_cast<float>(
+                m_toolsC->GetGreenData());
+
+        m_renderer->GetBGColor()[2] =
+            static_cast<float>(
+                m_toolsC->GetBlueData());
+
+        m_renderer->GetBGColor()[3] = 1.0f;
+
+        // Обновляем цвет окна
+        m_renderer->Render();
     }
 }

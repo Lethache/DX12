@@ -24,6 +24,10 @@ public:
     {
         return m_rtvHeap;
     }
+    float* GetBGColor()
+    {
+        return m_bgColor;
+    }
 
     // Methods
     void ConfigurePipeline(
@@ -87,4 +91,5 @@ private:
     HANDLE m_fenceEvent;
 
     bool m_initialized;
+    float m_bgColor[4];
 };

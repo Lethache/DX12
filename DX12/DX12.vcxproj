@@ -156,12 +156,14 @@
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Singleton.h" />
     <ClInclude Include="StandardIncludes.h" />
+    <ClInclude Include="ToolsController.h" />
     <ClInclude Include="WindowController.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="GameController.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Renderer.cpp" />
+    <ClCompile Include="ToolsController.cpp" />
     <ClCompile Include="WindowController.cpp" />
   </ItemGroup>
   <ItemGroup>

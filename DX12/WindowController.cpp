@@ -211,8 +211,12 @@ LRESULT CALLBACK WndProc(
         break;
 
     case WM_PAINT:
-        Renderer::GetInstance().Render();
+    {
+        PAINTSTRUCT paintStruct = {};
+        BeginPaint(_hWnd, &paintStruct);
+        EndPaint(_hWnd, &paintStruct);
         break;
+    }
 
     default:
         processed = false;
