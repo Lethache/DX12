@@ -5,9 +5,17 @@
 
 #include <Windows.h>
 #include <algorithm>
+#include <wrl.h>
+
+// DirectX12
+#include <d3d12.h>
+#include <dxgi1_6.h>
 
 #include "Singleton.h"
+#include "include/d3dx12/d3dx12.h"
 
+using Microsoft::WRL::ComPtr;
+using namespace std;
 #define M_ASSERT(_cond, _msg) \
     if (!(_cond)) { OutputDebugStringA(_msg); OutputDebugStringA(GetError()); std::abort(); }
 
