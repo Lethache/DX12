@@ -24,6 +24,7 @@ public:
     {
         return m_rtvHeap;
     }
+
     float* GetBGColor()
     {
         return m_bgColor;
@@ -33,36 +34,44 @@ public:
     void ConfigurePipeline(
         bool _userWarpDevice,
         HWND _hwnd,
-        int _wWidth,
-        int _wHeight);
+        int _windowWidth,
+        int _windowHeight);
 
-    void Render();
+    void Render(IRenderable* _renderable);
+
     void Destroy();
 
 private:
     // Methods
     UINT EnableDebugLayer();
 
-    void CreateDevice(
-        bool _userWarpDevice);
+    void CreateDevice(bool _userWarpDevice);
 
     void GetHardwareAdapter(
         _In_ IDXGIFactory1* _factory,
-        _Outptr_result_maybenull_
-        IDXGIAdapter1** _adapter,
-        bool reqHighPerfAdapter = false);
+        _Outptr_result_maybenull_ IDXGIAdapter1** _adapter,
+        bool _requireHighPerformanceAdapter = false);
 
     void CreateCommandQueue();
 
     void CreateSwapChain(
         HWND _hwnd,
-        int _wWidth,
-        int _wHeight);
+        int _windowWidth,
+        int _windowHeight);
 
     void CreateRenderTargetView();
+
     void CreateCommands();
+
     void CreateFence();
-    void PopulateCommandList();
+
+    void CreateViewport(
+        int _windowWidth,
+        int _windowHeight);
+
+    void PopulateCommandList(
+        IRenderable* _renderable);
+
     void WaitForPreviousFrame();
 
     // Members
@@ -85,11 +94,16 @@ private:
 
     ComPtr<ID3D12Fence> m_fence;
 
+    CD3DX12_VIEWPORT m_viewport;
+    CD3DX12_RECT m_scissorRect;
+
     UINT m_frameIndex;
     UINT m_rtvDescriptorSize;
     UINT64 m_fenceValue;
+
     HANDLE m_fenceEvent;
 
     bool m_initialized;
+
     float m_bgColor[4];
 };

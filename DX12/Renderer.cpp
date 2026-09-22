@@ -1,5 +1,5 @@
 #include "Renderer.h"
-
+#include "Shader.h"
 Renderer::Renderer()
 {
     m_factory = nullptr;
@@ -17,9 +17,11 @@ Renderer::Renderer()
     m_commandList = nullptr;
     m_fence = nullptr;
     m_fenceEvent = nullptr;
+
     m_fenceValue = 0;
     m_frameIndex = 0;
     m_rtvDescriptorSize = 0;
+
     m_initialized = false;
 
     memset(
@@ -28,6 +30,9 @@ Renderer::Renderer()
         sizeof(float) * 4);
 
     m_bgColor[3] = 1.0f;
+
+    m_viewport = {};
+    m_scissorRect = {};
 }
 
 Renderer::~Renderer()
@@ -38,34 +43,44 @@ Renderer::~Renderer()
 void Renderer::ConfigurePipeline(
     bool _userWarpDevice,
     HWND _hwnd,
-    int _wWidth,
-    int _wHeight)
+    int _windowWidth,
+    int _windowHeight)
 {
-    UINT dxgiFactoryFlags = EnableDebugLayer();
+    UINT dxgiFactoryFlags =
+        EnableDebugLayer();
 
     M_ASSERT(
-        SUCCEEDED(CreateDXGIFactory2(
-            dxgiFactoryFlags,
-            IID_PPV_ARGS(&m_factory))),
-        "Create DXGI factory failed");
+        SUCCEEDED(
+            CreateDXGIFactory2(
+                dxgiFactoryFlags,
+                IID_PPV_ARGS(&m_factory))),
+        "Create DXGI factory failed.");
 
     CreateDevice(_userWarpDevice);
+
     CreateCommandQueue();
+
     CreateSwapChain(
         _hwnd,
-        _wWidth,
-        _wHeight);
+        _windowWidth,
+        _windowHeight);
 
     CreateRenderTargetView();
+
     CreateCommands();
+
     CreateFence();
 
-    // Do not support fullscreen transitions yet.
+    CreateViewport(
+        _windowWidth,
+        _windowHeight);
+
     M_ASSERT(
-        SUCCEEDED(m_factory->MakeWindowAssociation(
-            _hwnd,
-            DXGI_MWA_NO_ALT_ENTER)),
-        "Failed to create window association");
+        SUCCEEDED(
+            m_factory->MakeWindowAssociation(
+                _hwnd,
+                DXGI_MWA_NO_ALT_ENTER)),
+        "Failed to create window association.");
 
     m_initialized = true;
 }
@@ -78,8 +93,9 @@ UINT Renderer::EnableDebugLayer()
 
     ComPtr<ID3D12Debug> debugController;
 
-    if (SUCCEEDED(D3D12GetDebugInterface(
-        IID_PPV_ARGS(&debugController))))
+    if (SUCCEEDED(
+        D3D12GetDebugInterface(
+            IID_PPV_ARGS(&debugController))))
     {
         debugController->EnableDebugLayer();
 
@@ -100,16 +116,18 @@ void Renderer::CreateDevice(
         ComPtr<IDXGIAdapter> warpAdapter;
 
         M_ASSERT(
-            SUCCEEDED(m_factory->EnumWarpAdapter(
-                IID_PPV_ARGS(&warpAdapter))),
-            "Enum warp adapter failed");
+            SUCCEEDED(
+                m_factory->EnumWarpAdapter(
+                    IID_PPV_ARGS(&warpAdapter))),
+            "Enum WARP adapter failed.");
 
         M_ASSERT(
-            SUCCEEDED(D3D12CreateDevice(
-                warpAdapter.Get(),
-                D3D_FEATURE_LEVEL_11_0,
-                IID_PPV_ARGS(&m_device))),
-            "Create warp device failed");
+            SUCCEEDED(
+                D3D12CreateDevice(
+                    warpAdapter.Get(),
+                    D3D_FEATURE_LEVEL_11_0,
+                    IID_PPV_ARGS(&m_device))),
+            "Create WARP device failed.");
     }
     else
     {
@@ -121,22 +139,22 @@ void Renderer::CreateDevice(
 
         M_ASSERT(
             hardwareAdapter != nullptr,
-            "Hardware adapter was not found");
+            "Hardware adapter was not found.");
 
         M_ASSERT(
-            SUCCEEDED(D3D12CreateDevice(
-                hardwareAdapter.Get(),
-                D3D_FEATURE_LEVEL_11_0,
-                IID_PPV_ARGS(&m_device))),
-            "Create hardware device failed");
+            SUCCEEDED(
+                D3D12CreateDevice(
+                    hardwareAdapter.Get(),
+                    D3D_FEATURE_LEVEL_11_0,
+                    IID_PPV_ARGS(&m_device))),
+            "Create hardware device failed.");
     }
 }
 
 void Renderer::GetHardwareAdapter(
     _In_ IDXGIFactory1* _factory,
-    _Outptr_result_maybenull_
-    IDXGIAdapter1** _adapter,
-    bool _reqHighPerfAdapter)
+    _Outptr_result_maybenull_ IDXGIAdapter1** _adapter,
+    bool _requireHighPerformanceAdapter)
 {
     *_adapter = nullptr;
 
@@ -150,7 +168,7 @@ void Renderer::GetHardwareAdapter(
         DXGI_GPU_PREFERENCE gpuPreference =
             DXGI_GPU_PREFERENCE_UNSPECIFIED;
 
-        if (_reqHighPerfAdapter)
+        if (_requireHighPerformanceAdapter)
         {
             gpuPreference =
                 DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE;
@@ -165,21 +183,23 @@ void Renderer::GetHardwareAdapter(
                     IID_PPV_ARGS(&adapter)));
             ++adapterIndex)
         {
-            DXGI_ADAPTER_DESC1 desc = {};
-            adapter->GetDesc1(&desc);
+            DXGI_ADAPTER_DESC1 description = {};
 
-            if (desc.Flags &
+            adapter->GetDesc1(&description);
+
+            if (description.Flags &
                 DXGI_ADAPTER_FLAG_SOFTWARE)
             {
                 adapter.Reset();
                 continue;
             }
 
-            if (SUCCEEDED(D3D12CreateDevice(
-                adapter.Get(),
-                D3D_FEATURE_LEVEL_11_0,
-                __uuidof(ID3D12Device),
-                nullptr)))
+            if (SUCCEEDED(
+                D3D12CreateDevice(
+                    adapter.Get(),
+                    D3D_FEATURE_LEVEL_11_0,
+                    __uuidof(ID3D12Device),
+                    nullptr)))
             {
                 break;
             }
@@ -198,21 +218,23 @@ void Renderer::GetHardwareAdapter(
                     &adapter));
                     ++adapterIndex)
         {
-            DXGI_ADAPTER_DESC1 desc = {};
-            adapter->GetDesc1(&desc);
+            DXGI_ADAPTER_DESC1 description = {};
 
-            if (desc.Flags &
+            adapter->GetDesc1(&description);
+
+            if (description.Flags &
                 DXGI_ADAPTER_FLAG_SOFTWARE)
             {
                 adapter.Reset();
                 continue;
             }
 
-            if (SUCCEEDED(D3D12CreateDevice(
-                adapter.Get(),
-                D3D_FEATURE_LEVEL_11_0,
-                __uuidof(ID3D12Device),
-                nullptr)))
+            if (SUCCEEDED(
+                D3D12CreateDevice(
+                    adapter.Get(),
+                    D3D_FEATURE_LEVEL_11_0,
+                    __uuidof(ID3D12Device),
+                    nullptr)))
             {
                 break;
             }
@@ -226,63 +248,66 @@ void Renderer::GetHardwareAdapter(
 
 void Renderer::CreateCommandQueue()
 {
-    D3D12_COMMAND_QUEUE_DESC queueDesc = {};
+    D3D12_COMMAND_QUEUE_DESC queueDescription = {};
 
-    queueDesc.Flags =
+    queueDescription.Flags =
         D3D12_COMMAND_QUEUE_FLAG_NONE;
 
-    queueDesc.Type =
+    queueDescription.Type =
         D3D12_COMMAND_LIST_TYPE_DIRECT;
 
     M_ASSERT(
-        SUCCEEDED(m_device->CreateCommandQueue(
-            &queueDesc,
-            IID_PPV_ARGS(&m_commandQueue))),
-        "Failed to create command queue");
+        SUCCEEDED(
+            m_device->CreateCommandQueue(
+                &queueDescription,
+                IID_PPV_ARGS(&m_commandQueue))),
+        "Failed to create command queue.");
 }
 
 void Renderer::CreateSwapChain(
     HWND _hwnd,
-    int _wWidth,
-    int _wHeight)
+    int _windowWidth,
+    int _windowHeight)
 {
-    DXGI_SWAP_CHAIN_DESC1 swapChainDesc = {};
+    DXGI_SWAP_CHAIN_DESC1 swapChainDescription = {};
 
-    swapChainDesc.BufferCount =
+    swapChainDescription.BufferCount =
         m_frameCount;
 
-    swapChainDesc.Width =
-        static_cast<UINT>(_wWidth);
+    swapChainDescription.Width =
+        static_cast<UINT>(_windowWidth);
 
-    swapChainDesc.Height =
-        static_cast<UINT>(_wHeight);
+    swapChainDescription.Height =
+        static_cast<UINT>(_windowHeight);
 
-    swapChainDesc.Format =
+    swapChainDescription.Format =
         DXGI_FORMAT_R8G8B8A8_UNORM;
 
-    swapChainDesc.BufferUsage =
+    swapChainDescription.BufferUsage =
         DXGI_USAGE_RENDER_TARGET_OUTPUT;
 
-    swapChainDesc.SwapEffect =
+    swapChainDescription.SwapEffect =
         DXGI_SWAP_EFFECT_FLIP_DISCARD;
 
-    swapChainDesc.SampleDesc.Count = 1;
+    swapChainDescription.SampleDesc.Count = 1;
 
     ComPtr<IDXGISwapChain1> swapChain;
 
     M_ASSERT(
-        SUCCEEDED(m_factory->CreateSwapChainForHwnd(
-            m_commandQueue.Get(),
-            _hwnd,
-            &swapChainDesc,
-            nullptr,
-            nullptr,
-            &swapChain)),
-        "Failed to create swap chain");
+        SUCCEEDED(
+            m_factory->CreateSwapChainForHwnd(
+                m_commandQueue.Get(),
+                _hwnd,
+                &swapChainDescription,
+                nullptr,
+                nullptr,
+                &swapChain)),
+        "Failed to create swap chain.");
 
     M_ASSERT(
-        SUCCEEDED(swapChain.As(&m_swapChain)),
-        "Casting swapchain failed");
+        SUCCEEDED(
+            swapChain.As(&m_swapChain)),
+        "Casting swap chain failed.");
 
     m_frameIndex =
         m_swapChain->GetCurrentBackBufferIndex();
@@ -290,45 +315,52 @@ void Renderer::CreateSwapChain(
 
 void Renderer::CreateRenderTargetView()
 {
-    D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
+    D3D12_DESCRIPTOR_HEAP_DESC
+        renderTargetHeapDescription = {};
 
-    rtvHeapDesc.NumDescriptors =
+    renderTargetHeapDescription.NumDescriptors =
         m_frameCount;
 
-    rtvHeapDesc.Type =
+    renderTargetHeapDescription.Type =
         D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
 
-    rtvHeapDesc.Flags =
+    renderTargetHeapDescription.Flags =
         D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
     M_ASSERT(
-        SUCCEEDED(m_device->CreateDescriptorHeap(
-            &rtvHeapDesc,
-            IID_PPV_ARGS(&m_rtvHeap))),
-        "Failed to create descriptor heap");
+        SUCCEEDED(
+            m_device->CreateDescriptorHeap(
+                &renderTargetHeapDescription,
+                IID_PPV_ARGS(&m_rtvHeap))),
+        "Failed to create descriptor heap.");
 
     m_rtvDescriptorSize =
         m_device->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
-        m_rtvHeap->
-        GetCPUDescriptorHandleForHeapStart());
+    CD3DX12_CPU_DESCRIPTOR_HANDLE
+        renderTargetView(
+            m_rtvHeap->
+            GetCPUDescriptorHandleForHeapStart());
 
-    for (UINT n = 0; n < m_frameCount; n++)
+    for (UINT index = 0;
+        index < m_frameCount;
+        index++)
     {
         M_ASSERT(
-            SUCCEEDED(m_swapChain->GetBuffer(
-                n,
-                IID_PPV_ARGS(&m_renderTargets[n]))),
-            "Swapchain get back buffer failed");
+            SUCCEEDED(
+                m_swapChain->GetBuffer(
+                    index,
+                    IID_PPV_ARGS(
+                        &m_renderTargets[index]))),
+            "Swap chain get back buffer failed.");
 
         m_device->CreateRenderTargetView(
-            m_renderTargets[n].Get(),
+            m_renderTargets[index].Get(),
             nullptr,
-            rtvHandle);
+            renderTargetView);
 
-        rtvHandle.Offset(
+        renderTargetView.Offset(
             1,
             m_rtvDescriptorSize);
     }
@@ -337,35 +369,38 @@ void Renderer::CreateRenderTargetView()
 void Renderer::CreateCommands()
 {
     M_ASSERT(
-        SUCCEEDED(m_device->CreateCommandAllocator(
-            D3D12_COMMAND_LIST_TYPE_DIRECT,
-            IID_PPV_ARGS(&m_commandAllocator))),
-        "Failed to create command allocator");
+        SUCCEEDED(
+            m_device->CreateCommandAllocator(
+                D3D12_COMMAND_LIST_TYPE_DIRECT,
+                IID_PPV_ARGS(
+                    &m_commandAllocator))),
+        "Failed to create command allocator.");
 
     M_ASSERT(
-        SUCCEEDED(m_device->CreateCommandList(
-            0,
-            D3D12_COMMAND_LIST_TYPE_DIRECT,
-            m_commandAllocator.Get(),
-            nullptr,
-            IID_PPV_ARGS(&m_commandList))),
-        "Failed to create command list");
+        SUCCEEDED(
+            m_device->CreateCommandList(
+                0,
+                D3D12_COMMAND_LIST_TYPE_DIRECT,
+                m_commandAllocator.Get(),
+                nullptr,
+                IID_PPV_ARGS(&m_commandList))),
+        "Failed to create command list.");
 
-    // Command lists are created in the recording state.
-    // The main loop expects the list to be closed.
     M_ASSERT(
-        SUCCEEDED(m_commandList->Close()),
-        "Failed to close command list");
+        SUCCEEDED(
+            m_commandList->Close()),
+        "Failed to close command list.");
 }
 
 void Renderer::CreateFence()
 {
     M_ASSERT(
-        SUCCEEDED(m_device->CreateFence(
-            0,
-            D3D12_FENCE_FLAG_NONE,
-            IID_PPV_ARGS(&m_fence))),
-        "Failed to create fence");
+        SUCCEEDED(
+            m_device->CreateFence(
+                0,
+                D3D12_FENCE_FLAG_NONE,
+                IID_PPV_ARGS(&m_fence))),
+        "Failed to create fence.");
 
     m_fenceValue = 1;
 
@@ -377,17 +412,35 @@ void Renderer::CreateFence()
 
     M_ASSERT(
         m_fenceEvent != nullptr,
-        "Failed to create fence event");
+        "Failed to create fence event.");
 }
 
-void Renderer::Render()
+void Renderer::CreateViewport(
+    int _windowWidth,
+    int _windowHeight)
+{
+    m_viewport = CD3DX12_VIEWPORT(
+        0.0f,
+        0.0f,
+        static_cast<float>(_windowWidth),
+        static_cast<float>(_windowHeight));
+
+    m_scissorRect = CD3DX12_RECT(
+        0,
+        0,
+        static_cast<LONG>(_windowWidth),
+        static_cast<LONG>(_windowHeight));
+}
+
+void Renderer::Render(
+    IRenderable* _renderable)
 {
     if (!m_initialized)
     {
         return;
     }
 
-    PopulateCommandList();
+    PopulateCommandList(_renderable);
 
     ID3D12CommandList* commandLists[] =
     {
@@ -399,10 +452,11 @@ void Renderer::Render()
         commandLists);
 
     M_ASSERT(
-        SUCCEEDED(m_swapChain->Present(
-            1,
-            0)),
-        "Failed to present swapchain.");
+        SUCCEEDED(
+            m_swapChain->Present(
+                1,
+                0)),
+        "Failed to present swap chain.");
 
     WaitForPreviousFrame();
 }
@@ -425,19 +479,25 @@ void Renderer::Destroy()
     m_initialized = false;
 }
 
-void Renderer::PopulateCommandList()
+void Renderer::PopulateCommandList(
+    IRenderable* _renderable)
 {
     M_ASSERT(
-        SUCCEEDED(m_commandAllocator->Reset()),
+        SUCCEEDED(
+            m_commandAllocator->Reset()),
         "Failed to reset command allocator.");
 
     M_ASSERT(
-        SUCCEEDED(m_commandList->Reset(
-            m_commandAllocator.Get(),
-            nullptr)),
+        SUCCEEDED(
+            m_commandList->Reset(
+                m_commandAllocator.Get(),
+                _renderable
+                ->GetShader()
+                ->GetPipelineState()
+                .Get())),
         "Failed to reset command list.");
 
-    CD3DX12_RESOURCE_BARRIER barrier =
+    auto barrier =
         CD3DX12_RESOURCE_BARRIER::Transition(
             m_renderTargets[m_frameIndex].Get(),
             D3D12_RESOURCE_STATE_PRESENT,
@@ -447,24 +507,40 @@ void Renderer::PopulateCommandList()
         1,
         &barrier);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(
-        m_rtvHeap->
-        GetCPUDescriptorHandleForHeapStart(),
-        m_frameIndex,
-        m_rtvDescriptorSize);
+    CD3DX12_CPU_DESCRIPTOR_HANDLE
+        renderTargetView(
+            m_rtvHeap->
+            GetCPUDescriptorHandleForHeapStart(),
+            m_frameIndex,
+            m_rtvDescriptorSize);
 
     m_commandList->OMSetRenderTargets(
         1,
-        &rtvHandle,
+        &renderTargetView,
         FALSE,
         nullptr);
 
-    // The background colour comes from ToolsForm.
+    m_commandList->RSSetViewports(
+        1,
+        &m_viewport);
+
+    m_commandList->RSSetScissorRects(
+        1,
+        &m_scissorRect);
+
+    _renderable
+        ->GetShader()
+        ->SetPipelineState(
+            m_commandList.Get());
+
     m_commandList->ClearRenderTargetView(
-        rtvHandle,
+        renderTargetView,
         m_bgColor,
         0,
         nullptr);
+
+    _renderable->Render(
+        m_commandList.Get());
 
     barrier =
         CD3DX12_RESOURCE_BARRIER::Transition(
@@ -477,7 +553,8 @@ void Renderer::PopulateCommandList()
         &barrier);
 
     M_ASSERT(
-        SUCCEEDED(m_commandList->Close()),
+        SUCCEEDED(
+            m_commandList->Close()),
         "Failed to close command list.");
 }
 
@@ -487,9 +564,10 @@ void Renderer::WaitForPreviousFrame()
         m_fenceValue;
 
     M_ASSERT(
-        SUCCEEDED(m_commandQueue->Signal(
-            m_fence.Get(),
-            fence)),
+        SUCCEEDED(
+            m_commandQueue->Signal(
+                m_fence.Get(),
+                fence)),
         "Failed to signal fence.");
 
     m_fenceValue++;
@@ -497,10 +575,11 @@ void Renderer::WaitForPreviousFrame()
     if (m_fence->GetCompletedValue() < fence)
     {
         M_ASSERT(
-            SUCCEEDED(m_fence->SetEventOnCompletion(
-                fence,
-                m_fenceEvent)),
-            "Failed to set fence complete.");
+            SUCCEEDED(
+                m_fence->SetEventOnCompletion(
+                    fence,
+                    m_fenceEvent)),
+            "Failed to set fence completion event.");
 
         WaitForSingleObject(
             m_fenceEvent,

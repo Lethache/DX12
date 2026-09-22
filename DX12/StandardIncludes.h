@@ -1,46 +1,54 @@
+
 #pragma once
 
+// Windows configuration
+#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
-#define NOMINMAX
+#endif
 
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+
+// Standard C++ libraries
 #include <Windows.h>
 #include <algorithm>
-#include <wrl.h>
 #include <iostream>
+#include <cstring>
+#include <cstdlib>
 
-using Microsoft::WRL::ComPtr;
-using namespace std;
+// Microsoft COM smart pointers
+#include <wrl/client.h>
 
-// DirectX12
+// DirectX 12
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <d3dcompiler.h>
+#include <DirectXMath.h>
 
-#include "Singleton.h"
+// DirectX 12 helper library
 #include "include/d3dx12/d3dx12.h"
-#include "WindowController.h"
-#include "Renderer.h"
+
+// Link DirectX libraries
+#pragma comment(lib, "d3d12.lib")
+#pragma comment(lib, "dxgi.lib")
+#pragma comment(lib, "d3dcompiler.lib")
+
+// Namespaces
 using Microsoft::WRL::ComPtr;
-using namespace std;
-#define M_ASSERT(_cond, _msg) \
-    if (!(_cond)) { OutputDebugStringA(_msg); OutputDebugStringA(GetError()); std::abort(); }
 
-static LPVOID lpErrorMessage;
+// Project utilities and interfaces
+#include "Singleton.h"
+#include "IRenderable.h"
 
-static char* GetError()
-{
-    DWORD dwErrorCode = GetLastError();
-
-    FormatMessage(
-        FORMAT_MESSAGE_ALLOCATE_BUFFER |
-        FORMAT_MESSAGE_FROM_SYSTEM |
-        FORMAT_MESSAGE_IGNORE_INSERTS,
-        nullptr,
-        dwErrorCode,
-        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-        (LPTSTR)&lpErrorMessage,
-        0,
-        nullptr
-    );
-
-    return static_cast<char*>(lpErrorMessage);
-};
+// Debug assertion
+#define M_ASSERT(_cond, _msg)                 \
+    do                                       \
+    {                                        \
+        if (!(_cond))                        \
+        {                                    \
+            OutputDebugStringA(_msg);        \
+            OutputDebugStringA("\n");        \
+            std::abort();                    \
+        }                                    \
+    } while (0)

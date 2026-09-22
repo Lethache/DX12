@@ -210,14 +210,6 @@ LRESULT CALLBACK WndProc(
         }
         break;
 
-    case WM_PAINT:
-    {
-        PAINTSTRUCT paintStruct = {};
-        BeginPaint(_hWnd, &paintStruct);
-        EndPaint(_hWnd, &paintStruct);
-        break;
-    }
-
     default:
         processed = false;
         break;

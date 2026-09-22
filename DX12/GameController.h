@@ -1,7 +1,12 @@
+
 #pragma once
 
 #include "StandardIncludes.h"
-#include "ToolsController.h"
+
+// Forward declarations
+class WindowController;
+class Renderer;
+class ToolsController;
 
 class GameController :
     public Singleton<GameController>
