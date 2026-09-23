@@ -26,10 +26,13 @@ void Mesh::CreateVertexBuffer(ID3D12Device* _device)
 {
     Vertex vertices[] =
     {
-        // Position                     // RGBA color
-        {{ 0.00f,  0.50f, 0.00f}, {1.0f, 0.0f, 0.0f, 1.0f}}, // Red
-        {{-0.50f, -0.50f, 0.00f}, {0.0f, 0.0f, 1.0f, 1.0f}}, // Blue
-        {{ 0.50f, -0.50f, 0.00f}, {0.0f, 1.0f, 0.0f, 1.0f}}  // Green
+        // Position               // RGBA color
+        {{-0.50f,  0.00f, 0.0f}, {1.0f, 0.0f, 0.0f, 1.0f}},
+        {{-0.25f,  0.25f, 0.0f}, {0.0f, 1.0f, 0.0f, 1.0f}},
+        {{-0.25f, -0.25f, 0.0f}, {0.0f, 0.0f, 1.0f, 1.0f}},
+        {{ 0.00f,  0.50f, 0.0f}, {1.0f, 1.0f, 0.0f, 1.0f}},
+        {{ 0.50f,  0.00f, 0.0f}, {0.0f, 1.0f, 1.0f, 1.0f}},
+        {{ 0.50f,  0.75f, 0.0f}, {1.0f, 0.0f, 1.0f, 1.0f}}
     };
 
     auto heapProperties =
@@ -84,7 +87,7 @@ void Mesh::CreateIndexBuffer(ID3D12Device* _device)
 {
     unsigned short indices[] =
     {
-		0, 2 , 1
+        0, 1, 2, 3, 4, 5
     };
 
     m_indexBufferSize = sizeof(indices);
@@ -141,23 +144,16 @@ void Mesh::Render(
     ID3D12GraphicsCommandList* _commandList)
 {
     _commandList->IASetPrimitiveTopology(
-        D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
     _commandList->IASetVertexBuffers(
         0,
         1,
         &m_vertexBufferView);
 
-    _commandList->IASetIndexBuffer(
-        &m_indexBufferView);
-
-    UINT indexCount =
-        m_indexBufferSize / sizeof(unsigned short);
-
-    _commandList->DrawIndexedInstanced(
-        indexCount,
+    _commandList->DrawInstanced(
+        6,
         1,
-        0,
         0,
         0);
 }

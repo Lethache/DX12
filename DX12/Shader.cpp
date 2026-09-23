@@ -193,7 +193,7 @@ void Shader::CreatePipelineState(ID3D12Device* _device)
     pipelineDescription.SampleMask = UINT_MAX;
 
     pipelineDescription.PrimitiveTopologyType =
-        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
 
     pipelineDescription.NumRenderTargets = 1;
 
