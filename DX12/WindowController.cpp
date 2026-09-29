@@ -191,38 +191,46 @@ LRESULT CALLBACK WndProc(
     WPARAM _wParam,
     LPARAM _lParam)
 {
-    bool processed = true;
+    WindowController& window =
+        WindowController::GetInstance();
 
     switch (_message)
     {
     case WM_DESTROY:
         PostQuitMessage(0);
-        break;
+        return 0;
+
+    case WM_KEYDOWN:
+        if (_wParam < 256)
+        {
+            window.GetKeyStates()[_wParam] = true;
+        }
+        return 0;
 
     case WM_KEYUP:
+        if (_wParam < 256)
+        {
+            window.GetKeyStates()[_wParam] = false;
+        }
+
         if (_wParam == VK_ESCAPE)
         {
             PostQuitMessage(0);
         }
-        else
+        return 0;
+
+    case WM_KILLFOCUS:
+        // Prevent stuck keys when switching to another window.
+        for (int i = 0; i < 256; ++i)
         {
-            processed = false;
+            window.GetKeyStates()[i] = false;
         }
-        break;
-
-    default:
-        processed = false;
-        break;
+        return 0;
     }
 
-    if (!processed)
-    {
-        return DefWindowProc(
-            _hWnd,
-            _message,
-            _wParam,
-            _lParam);
-    }
-
-    return 0;
+    return DefWindowProc(
+        _hWnd,
+        _message,
+        _wParam,
+        _lParam);
 }

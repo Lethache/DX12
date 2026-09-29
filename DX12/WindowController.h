@@ -1,48 +1,56 @@
 #pragma once
-#pragma comment(lib, "shcore.lib") // Link shcore.lib for SetProcessDpiAwareness
-
-#include <shellscalingapi.h> // For SetProcessDpiAwareness
 
 #include "StandardIncludes.h"
+#include <shellscalingapi.h>
 
+#pragma comment(lib, "shcore.lib")
 
 LRESULT CALLBACK WndProc(
     HWND hWnd,
     UINT message,
     WPARAM wParam,
-    LPARAM lParam
-);
+    LPARAM lParam);
 
 enum class WindowMode
 {
     WINDOWED,
     WINDOWED_BORDERLESS,
     WINDOWED_BORDERLESS_FULLSCREEN,
-    FULLSCREEN_EXCLUSIVE // Not implemented yet, we need DirectX for that
+    FULLSCREEN_EXCLUSIVE
 };
 
 class WindowController : public Singleton<WindowController>
 {
 public:
-    // Constructor/Destructor
     WindowController();
     virtual ~WindowController() {}
 
-    // Accessors
-    HWND GetHWND() const { return m_hwnd; }
-    int GetWindowWidth() const { return m_windowWidth; }
-    int GetWindowHeight() const { return m_windowHeight; }
+    HWND GetHWND() const
+    {
+        return m_hwnd;
+    }
 
-    // Methods
+    int GetWindowWidth() const
+    {
+        return m_windowWidth;
+    }
+
+    int GetWindowHeight() const
+    {
+        return m_windowHeight;
+    }
+
+    bool* GetKeyStates()
+    {
+        return m_keyStates;
+    }
+
     void Create(
         HINSTANCE _hInstance,
         int _showWnd,
-        WindowMode _mode
-
-    );
+        WindowMode _mode);
 
 private:
-    // Methods
     void RegClass(HINSTANCE _hInstance);
     void GetPrimaryMonitorResolution();
     void CenterWindow();
@@ -51,12 +59,11 @@ private:
     void Initialize(
         HINSTANCE _hInstance,
         int _showWnd,
-        WindowMode _mode
-    );
+        WindowMode _mode);
 
-    // Members
     LPCWSTR m_wClassName;
     LPCWSTR m_wTitle;
+
     WNDCLASSEX m_wClass;
     HWND m_hwnd;
     WindowMode m_windowMode;
@@ -67,4 +74,6 @@ private:
     int m_windowHeight;
     int m_monitorWidth;
     int m_monitorHeight;
+
+    bool m_keyStates[256] = {};
 };

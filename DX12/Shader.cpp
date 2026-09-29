@@ -227,16 +227,27 @@ void Shader::CreatePipelineState(ID3D12Device* _device)
 void Shader::SetPipelineState(
     ID3D12GraphicsCommandList* _commandList)
 {
+    using namespace DirectX;
+
     _commandList->SetGraphicsRootSignature(
         m_rootSignature.Get());
 
     _commandList->SetPipelineState(
         m_pipelineState.Get());
 
-    // Upload view and projection matrices to register b0.
+    CameraData data = m_cameraData;
+
+    // Combine the object world matrix with the camera view matrix.
+    XMMATRIX world = XMLoadFloat4x4(&m_world);
+    XMMATRIX view = XMLoadFloat4x4(&m_cameraData.view);
+
+    XMStoreFloat4x4(
+        &data.view,
+        world * view);
+
     _commandList->SetGraphicsRoot32BitConstants(
         0,
         32,
-        &m_cameraData,
+        &data,
         0);
 }

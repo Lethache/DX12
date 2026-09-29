@@ -161,6 +161,7 @@
     <ClInclude Include="Singleton.h" />
     <ClInclude Include="StandardIncludes.h" />
     <ClInclude Include="ToolsController.h" />
+    <ClInclude Include="Unit.h" />
     <ClInclude Include="WindowController.h" />
   </ItemGroup>
   <ItemGroup>
@@ -170,6 +171,7 @@
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shader.cpp" />
     <ClCompile Include="ToolsController.cpp" />
+    <ClCompile Include="Unit.cpp" />
     <ClCompile Include="WindowController.cpp" />
   </ItemGroup>
   <ItemGroup>

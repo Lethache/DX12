@@ -4,8 +4,11 @@
 #include "Renderer.h"
 #include "ToolsController.h"
 #include "Shader.h"
-#include "Mesh.h"
 #include "Camera.h"
+#include "Unit.h"
+
+#include <algorithm>
+#include <chrono>
 
 GameController::GameController()
 {
@@ -51,13 +54,13 @@ void GameController::Run()
         L"shaders.hlsl",
         m_renderer->GetDevice().Get());
 
-    Mesh mesh;
+    Unit unit;
 
-    mesh.Initialize(
+    unit.Initialize(
         m_renderer->GetDevice().Get(),
         &shader);
 
-    // Match the projection aspect ratio to the render target.
+    // Match the projection to the render target dimensions.
     DXGI_SWAP_CHAIN_DESC1 swapChainDescription = {};
 
     HRESULT result = m_renderer->GetSwapChain()->GetDesc1(
@@ -86,64 +89,126 @@ void GameController::Run()
         m_windowC->GetHWND(),
         titles[0]);
 
-    MSG message = {};
+    auto previousTime = std::chrono::steady_clock::now();
 
-    while (message.message != WM_QUIT)
+    MSG message = {};
+    bool running = true;
+
+    while (running)
     {
-        if (PeekMessage(
+        // Process all pending window messages.
+        while (PeekMessage(
             &message,
             nullptr,
             0,
             0,
             PM_REMOVE))
         {
+            if (message.message == WM_QUIT)
+            {
+                running = false;
+                break;
+            }
+
             TranslateMessage(&message);
             DispatchMessage(&message);
         }
-        else
+
+        if (!running)
         {
-            // Process number keys only when the game has focus.
-            if (GetForegroundWindow() == m_windowC->GetHWND())
+            break;
+        }
+
+        // Calculate elapsed time for frame-independent movement.
+        auto currentTime = std::chrono::steady_clock::now();
+
+        float deltaTime = std::chrono::duration<float>(
+            currentTime - previousTime).count();
+
+        previousTime = currentTime;
+        deltaTime = std::min(deltaTime, 0.05f);
+
+        bool* keys = m_windowC->GetKeyStates();
+
+        if (GetForegroundWindow() == m_windowC->GetHWND())
+        {
+            // Switch between the four camera setups.
+            int selectedSetup = camera.GetSetup();
+
+            if (keys['1'])
+                selectedSetup = 1;
+            else if (keys['2'])
+                selectedSetup = 2;
+            else if (keys['3'])
+                selectedSetup = 3;
+            else if (keys['4'])
+                selectedSetup = 4;
+
+            if (selectedSetup != camera.GetSetup())
             {
-                int selectedSetup = camera.GetSetup();
+                camera.SetSetup(selectedSetup, aspectRatio);
 
-                if (GetAsyncKeyState('1') & 0x8000)
-                    selectedSetup = 1;
-                else if (GetAsyncKeyState('2') & 0x8000)
-                    selectedSetup = 2;
-                else if (GetAsyncKeyState('3') & 0x8000)
-                    selectedSetup = 3;
-                else if (GetAsyncKeyState('4') & 0x8000)
-                    selectedSetup = 4;
-
-                if (selectedSetup != camera.GetSetup())
-                {
-                    camera.SetSetup(
-                        selectedSetup,
-                        aspectRatio);
-
-                    SetWindowTextW(
-                        m_windowC->GetHWND(),
-                        titles[selectedSetup - 1]);
-                }
+                SetWindowTextW(
+                    m_windowC->GetHWND(),
+                    titles[selectedSetup - 1]);
             }
 
-            // Update the background color from the tools window.
-            m_renderer->GetBGColor()[0] =
-                static_cast<float>(m_toolsC->GetRedData());
+            auto position = unit.GetPosition();
+            auto rotation = unit.GetRotation();
+            auto scale = unit.GetScale();
 
-            m_renderer->GetBGColor()[1] =
-                static_cast<float>(m_toolsC->GetGreenData());
+            const float moveSpeed = 1.0f;
+            const float rotationSpeed = 1.5f;
+            const float scaleSpeed = 0.5f;
 
-            m_renderer->GetBGColor()[2] =
-                static_cast<float>(m_toolsC->GetBlueData());
+            // Move the object.
+            if (keys[VK_RIGHT])
+                position.x += moveSpeed * deltaTime;
 
-            // Send the active camera matrices to the shader.
-            shader.SetCameraMatrices(
-                camera.GetView(),
-                camera.GetProjection());
+            if (keys[VK_LEFT])
+                position.x -= moveSpeed * deltaTime;
 
-            m_renderer->Render(&mesh);
+            if (keys[VK_UP])
+                position.y += moveSpeed * deltaTime;
+
+            if (keys[VK_DOWN])
+                position.y -= moveSpeed * deltaTime;
+
+            // Rotate around the Y axis.
+            if (keys['Q'])
+                rotation.y += rotationSpeed * deltaTime;
+
+            if (keys['D'])
+                rotation.y -= rotationSpeed * deltaTime;
+
+            // Increase or decrease the width.
+            if (keys['A'])
+                scale.x += scaleSpeed * deltaTime;
+
+            if (keys['S'])
+                scale.x -= scaleSpeed * deltaTime;
+
+            scale.x = std::max(scale.x, 0.1f);
+
+            unit.SetPosition(position);
+            unit.SetRotation(rotation);
+            unit.SetScale(scale);
         }
+
+        // Update the background color.
+        m_renderer->GetBGColor()[0] =
+            static_cast<float>(m_toolsC->GetRedData());
+
+        m_renderer->GetBGColor()[1] =
+            static_cast<float>(m_toolsC->GetGreenData());
+
+        m_renderer->GetBGColor()[2] =
+            static_cast<float>(m_toolsC->GetBlueData());
+
+        shader.SetCameraMatrices(
+            camera.GetView(),
+            camera.GetProjection());
+
+        m_renderer->Render(&unit);
     }
 }

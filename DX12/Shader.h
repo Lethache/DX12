@@ -15,7 +15,10 @@ class Shader
 public:
     Shader();
     virtual ~Shader() {}
-
+    void SetWorldMatrix(const DirectX::XMMATRIX& world)
+    {
+        DirectX::XMStoreFloat4x4(&m_world, world);
+    }
     ComPtr<ID3D12RootSignature>& GetRootSignature()
     {
         return m_rootSignature;
@@ -44,7 +47,14 @@ public:
 private:
     void CompileShaders(LPCWSTR _shaderFile);
     void CreatePipelineState(ID3D12Device* _device);
-
+    // Identity matrix leaves the object unchanged.
+    DirectX::XMFLOAT4X4 m_world =
+    {
+        1.0f, 0.0f, 0.0f, 0.0f,
+        0.0f, 1.0f, 0.0f, 0.0f,
+        0.0f, 0.0f, 1.0f, 0.0f,
+        0.0f, 0.0f, 0.0f, 1.0f
+    };
     struct CameraData
     {
         XMFLOAT4X4 view;
