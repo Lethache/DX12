@@ -93,12 +93,20 @@ void Shader::CreatePipelineState(ID3D12Device* _device)
     ComPtr<ID3DBlob> signature;
     ComPtr<ID3DBlob> error;
 
-    // Create root signature
+    // Two 4x4 matrices contain 32 float values.
+    CD3DX12_ROOT_PARAMETER cameraParameter;
+
+    cameraParameter.InitAsConstants(
+        32,
+        0,
+        0,
+        D3D12_SHADER_VISIBILITY_VERTEX);
+
     CD3DX12_ROOT_SIGNATURE_DESC rootSignatureDesc;
 
     rootSignatureDesc.Init(
-        0,
-        nullptr,
+        1,
+        &cameraParameter,
         0,
         nullptr,
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
@@ -192,8 +200,12 @@ void Shader::CreatePipelineState(ID3D12Device* _device)
 
     pipelineDescription.SampleMask = UINT_MAX;
 
+    
     pipelineDescription.PrimitiveTopologyType =
-        D3D12_PRIMITIVE_TOPOLOGY_TYPE_POINT;
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    // Show both sides of the flat mesh.
+    pipelineDescription.RasterizerState.CullMode =
+        D3D12_CULL_MODE_NONE;
 
     pipelineDescription.NumRenderTargets = 1;
 
@@ -215,11 +227,16 @@ void Shader::CreatePipelineState(ID3D12Device* _device)
 void Shader::SetPipelineState(
     ID3D12GraphicsCommandList* _commandList)
 {
-    // Set root signature
     _commandList->SetGraphicsRootSignature(
         m_rootSignature.Get());
 
-    // Set graphics pipeline state
     _commandList->SetPipelineState(
         m_pipelineState.Get());
+
+    // Upload view and projection matrices to register b0.
+    _commandList->SetGraphicsRoot32BitConstants(
+        0,
+        32,
+        &m_cameraData,
+        0);
 }

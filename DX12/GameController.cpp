@@ -1,4 +1,3 @@
-
 #include "GameController.h"
 
 #include "WindowController.h"
@@ -6,8 +5,8 @@
 #include "ToolsController.h"
 #include "Shader.h"
 #include "Mesh.h"
+#include "Camera.h"
 
-// Constructor
 GameController::GameController()
 {
     m_windowC = nullptr;
@@ -15,28 +14,22 @@ GameController::GameController()
     m_toolsC = nullptr;
 }
 
-// Destructor
 GameController::~GameController()
 {
 }
 
-// Initialize game
 void GameController::Initialize(
     HINSTANCE _hInstance,
     int _nShowCmd)
 {
-    // Initialize window controller
-    m_windowC =
-        &WindowController::GetInstance();
+    m_windowC = &WindowController::GetInstance();
 
     m_windowC->Create(
         _hInstance,
         _nShowCmd,
         WindowMode::WINDOWED);
 
-    // Initialize renderer
-    m_renderer =
-        &Renderer::GetInstance();
+    m_renderer = &Renderer::GetInstance();
 
     m_renderer->ConfigurePipeline(
         false,
@@ -44,37 +37,57 @@ void GameController::Initialize(
         m_windowC->GetWindowWidth(),
         m_windowC->GetWindowHeight());
 
-    // Initialize tools controller
-    m_toolsC =
-        &ToolsController::GetInstance();
-
+    m_toolsC = &ToolsController::GetInstance();
     m_toolsC->LoadToolsLibrary();
 }
 
-// Main game loop
 void GameController::Run()
 {
-    // Show tools window
     m_toolsC->ShowForm();
 
-    // Create and initialize shader
     Shader shader;
 
     shader.Initialize(
         L"shaders.hlsl",
         m_renderer->GetDevice().Get());
 
-    // Create and initialize mesh
     Mesh mesh;
 
     mesh.Initialize(
         m_renderer->GetDevice().Get(),
         &shader);
 
-    // Windows message
+    // Match the projection aspect ratio to the render target.
+    DXGI_SWAP_CHAIN_DESC1 swapChainDescription = {};
+
+    HRESULT result = m_renderer->GetSwapChain()->GetDesc1(
+        &swapChainDescription);
+
+    M_ASSERT(
+        SUCCEEDED(result),
+        "Failed to read swap chain dimensions.");
+
+    float aspectRatio =
+        static_cast<float>(swapChainDescription.Width)
+        / static_cast<float>(swapChainDescription.Height);
+
+    Camera camera;
+    camera.SetSetup(1, aspectRatio);
+
+    const wchar_t* titles[] =
+    {
+        L"Setup 1: View 1 / FOV 45 | Keys 1-4",
+        L"Setup 2: View 1 / FOV 75 | Keys 1-4",
+        L"Setup 3: View 2 / FOV 45 | Keys 1-4",
+        L"Setup 4: View 2 / FOV 75 | Keys 1-4"
+    };
+
+    SetWindowTextW(
+        m_windowC->GetHWND(),
+        titles[0]);
+
     MSG message = {};
 
-    // Main loop
     while (message.message != WM_QUIT)
     {
         if (PeekMessage(
@@ -89,20 +102,47 @@ void GameController::Run()
         }
         else
         {
-            // Update background color
+            // Process number keys only when the game has focus.
+            if (GetForegroundWindow() == m_windowC->GetHWND())
+            {
+                int selectedSetup = camera.GetSetup();
+
+                if (GetAsyncKeyState('1') & 0x8000)
+                    selectedSetup = 1;
+                else if (GetAsyncKeyState('2') & 0x8000)
+                    selectedSetup = 2;
+                else if (GetAsyncKeyState('3') & 0x8000)
+                    selectedSetup = 3;
+                else if (GetAsyncKeyState('4') & 0x8000)
+                    selectedSetup = 4;
+
+                if (selectedSetup != camera.GetSetup())
+                {
+                    camera.SetSetup(
+                        selectedSetup,
+                        aspectRatio);
+
+                    SetWindowTextW(
+                        m_windowC->GetHWND(),
+                        titles[selectedSetup - 1]);
+                }
+            }
+
+            // Update the background color from the tools window.
             m_renderer->GetBGColor()[0] =
-                static_cast<float>(
-                    m_toolsC->GetRedData());
+                static_cast<float>(m_toolsC->GetRedData());
 
             m_renderer->GetBGColor()[1] =
-                static_cast<float>(
-                    m_toolsC->GetGreenData());
+                static_cast<float>(m_toolsC->GetGreenData());
 
             m_renderer->GetBGColor()[2] =
-                static_cast<float>(
-                    m_toolsC->GetBlueData());
+                static_cast<float>(m_toolsC->GetBlueData());
 
-            // Render mesh
+            // Send the active camera matrices to the shader.
+            shader.SetCameraMatrices(
+                camera.GetView(),
+                camera.GetProjection());
+
             m_renderer->Render(&mesh);
         }
     }

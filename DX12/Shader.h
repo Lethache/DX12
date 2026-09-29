@@ -33,9 +33,29 @@ public:
     void SetPipelineState(
         ID3D12GraphicsCommandList* _commandList);
 
+    void SetCameraMatrices(
+        const XMFLOAT4X4& view,
+        const XMFLOAT4X4& projection)
+    {
+        m_cameraData.view = view;
+        m_cameraData.projection = projection;
+    }
+
 private:
     void CompileShaders(LPCWSTR _shaderFile);
     void CreatePipelineState(ID3D12Device* _device);
+
+    struct CameraData
+    {
+        XMFLOAT4X4 view;
+        XMFLOAT4X4 projection;
+    };
+
+    static_assert(
+        sizeof(CameraData) == 32 * sizeof(float),
+        "Camera data must contain exactly 32 floats.");
+
+    CameraData m_cameraData = {};
 
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;

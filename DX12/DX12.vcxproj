@@ -152,6 +152,7 @@
     </Manifest>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Camera.h" />
     <ClInclude Include="GameController.h" />
     <ClInclude Include="IRenderable.h" />
     <ClInclude Include="Mesh.h" />
