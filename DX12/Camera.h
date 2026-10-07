@@ -1,74 +1,25 @@
 #pragma once
 
-#include <DirectXMath.h>
+#include "StandardIncludes.h"
 
 class Camera
 {
 public:
-    // Select one of the four view/projection combinations.
-    void SetSetup(int setup, float aspectRatio)
+    Camera();
+    Camera(int _width, int _height);
+    virtual ~Camera();
+
+    XMMATRIX GetProjection() const
     {
-        using namespace DirectX;
-
-        m_setup = setup;
-
-        // Setups 1 and 2 use the first view.
-        // Setups 3 and 4 use the second view.
-        XMVECTOR position;
-
-        if (setup <= 2)
-        {
-            position = XMVectorSet(
-                0.0f, 0.0f, -2.0f, 1.0f);
-        }
-        else
-        {
-            position = XMVectorSet(
-                1.3f, 0.8f, -2.0f, 1.0f);
-        }
-
-        XMVECTOR target = XMVectorSet(
-            0.0f, 0.2f, 0.0f, 1.0f);
-
-        XMVECTOR up = XMVectorSet(
-            0.0f, 1.0f, 0.0f, 0.0f);
-
-        XMStoreFloat4x4(
-            &m_view,
-            XMMatrixLookAtLH(position, target, up));
-
-        // Setups 1 and 3 use a 45-degree field of view.
-        // Setups 2 and 4 use a 75-degree field of view.
-        float fovDegrees =
-            (setup == 1 || setup == 3) ? 45.0f : 75.0f;
-
-        XMStoreFloat4x4(
-            &m_projection,
-            XMMatrixPerspectiveFovLH(
-                XMConvertToRadians(fovDegrees),
-                aspectRatio,
-                0.1f,
-                100.0f));
+        return XMLoadFloat4x4(&m_projection);
     }
 
-    const DirectX::XMFLOAT4X4& GetView() const
+    XMMATRIX GetView() const
     {
-        return m_view;
-    }
-
-    const DirectX::XMFLOAT4X4& GetProjection() const
-    {
-        return m_projection;
-    }
-
-    int GetSetup() const
-    {
-        return m_setup;
+        return XMLoadFloat4x4(&m_view);
     }
 
 private:
-    DirectX::XMFLOAT4X4 m_view = {};
-    DirectX::XMFLOAT4X4 m_projection = {};
-
-    int m_setup = 1;
+    XMFLOAT4X4 m_projection;
+    XMFLOAT4X4 m_view;
 };

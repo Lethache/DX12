@@ -1,29 +1,25 @@
 #include "Unit.h"
-#include "Shader.h"
 
-void Unit::Render(
-    ID3D12GraphicsCommandList* commandList)
+Unit::Unit()
 {
-    using namespace DirectX;
+    m_position = { 0.0f, 0.0f, 0.0f };
+    m_rotation = { 0.0f, 0.0f, 0.0f };
+    m_scale = { 1.0f, 1.0f, 1.0f };
+}
 
-    // Apply scale, rotation, and translation in that order.
-    XMMATRIX world =
-        XMMatrixScaling(
-            m_scale.x,
-            m_scale.y,
-            m_scale.z)
-        * XMMatrixRotationRollPitchYaw(
-            m_rotation.x,
-            m_rotation.y,
-            m_rotation.z)
-        * XMMatrixTranslation(
-            m_position.x,
-            m_position.y,
-            m_position.z);
+Unit::~Unit()
+{
+}
 
-    // Upload the object transformation before drawing.
-    GetShader()->SetWorldMatrix(world);
-    GetShader()->SetPipelineState(commandList);
+void Unit::Render(XMMATRIX _viewProj)
+{
+    XMMATRIX world = XMMatrixScaling(
+        m_scale.x, m_scale.y, m_scale.z);
 
-    Mesh::Render(commandList);
+    world *= XMMatrixRotationY(m_rotation.y);
+
+    world *= XMMatrixTranslation(
+        m_position.x, m_position.y, m_position.z);
+
+    Mesh::Render(world * _viewProj);
 }

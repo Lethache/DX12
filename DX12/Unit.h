@@ -1,45 +1,27 @@
 #pragma once
 
+#include "StandardIncludes.h"
 #include "Mesh.h"
 
 class Unit : public Mesh
 {
 public:
-    DirectX::XMFLOAT3 GetPosition() const
-    {
-        return m_position;
-    }
+    Unit();
+    virtual ~Unit();
 
-    void SetPosition(DirectX::XMFLOAT3 position)
-    {
-        m_position = position;
-    }
+    XMFLOAT3 GetPosition() const { return m_position; }
+    void SetPosition(XMFLOAT3 _position) { m_position = _position; }
 
-    DirectX::XMFLOAT3 GetRotation() const
-    {
-        return m_rotation;
-    }
+    XMFLOAT3 GetRotation() const { return m_rotation; }
+    void SetRotation(XMFLOAT3 _rotation) { m_rotation = _rotation; }
 
-    void SetRotation(DirectX::XMFLOAT3 rotation)
-    {
-        m_rotation = rotation;
-    }
+    XMFLOAT3 GetScale() const { return m_scale; }
+    void SetScale(XMFLOAT3 _scale) { m_scale = _scale; }
 
-    DirectX::XMFLOAT3 GetScale() const
-    {
-        return m_scale;
-    }
-
-    void SetScale(DirectX::XMFLOAT3 scale)
-    {
-        m_scale = scale;
-    }
-
-    void Render(
-        ID3D12GraphicsCommandList* commandList) override;
+    void Render(XMMATRIX _viewProj) override;
 
 private:
-    DirectX::XMFLOAT3 m_position = { 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_rotation = { 0.0f, 0.0f, 0.0f };
-    DirectX::XMFLOAT3 m_scale = { 1.0f, 1.0f, 1.0f };
+    XMFLOAT3 m_position;
+    XMFLOAT3 m_rotation;
+    XMFLOAT3 m_scale;
 };

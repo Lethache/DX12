@@ -1,31 +1,37 @@
-cbuffer CameraBuffer : register(b0)
+cbuffer SceneData : register(b0)
 {
-    row_major float4x4 view;
-    row_major float4x4 projection;
+    float4x4 WVP;
 };
 
 struct PSInput
 {
     float4 position : SV_POSITION;
-    float4 color : COLOR;
+    float4 color : COLOR0;
+    float2 uv : TEXCOORD0;
 };
 
-PSInput VSMain(
-    float3 position : POSITION,
-    float4 color : COLOR)
+struct VSInput
+{
+    float3 position : POSITION;
+    float4 color : COLOR0;
+    float2 uv : TEXCOORD0;
+};
+
+Texture2D g_texture : register(t0);
+SamplerState g_sampler : register(s0);
+
+PSInput VSMain(VSInput input)
 {
     PSInput result;
 
-    float4 worldPosition = float4(position, 1.0f);
-    float4 viewPosition = mul(worldPosition, view);
-
-    result.position = mul(viewPosition, projection);
-    result.color = color;
+    result.position = mul(float4(input.position, 1.0f), WVP);
+    result.color = input.color;
+    result.uv = input.uv;
 
     return result;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    return input.color;
+    return g_texture.Sample(g_sampler, input.uv) * input.color;
 }

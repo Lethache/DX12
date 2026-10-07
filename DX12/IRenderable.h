@@ -1,8 +1,6 @@
 #pragma once
 
-#include <d3d12.h>
-
-class Shader;
+#include "StandardIncludes.h"
 
 class IRenderable
 {
@@ -10,6 +8,7 @@ public:
     IRenderable()
     {
         m_shader = nullptr;
+        m_texture = nullptr;
     }
 
     virtual ~IRenderable() {}
@@ -24,9 +23,19 @@ public:
         m_shader = _shader;
     }
 
-    virtual void Render(
-        ID3D12GraphicsCommandList* _commandList) = 0;
+    Texture* GetTexture()
+    {
+        return m_texture;
+    }
+
+    void SetTexture(Texture* _texture)
+    {
+        m_texture = _texture;
+    }
+
+    virtual void Render(XMMATRIX _viewProj) = 0;
 
 private:
     Shader* m_shader;
+    Texture* m_texture;
 };

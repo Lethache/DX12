@@ -1,7 +1,5 @@
-
 #pragma once
-
-// Windows configuration
+#pragma comment(lib, "dxguid.lib")
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN
 #endif
@@ -10,45 +8,51 @@
 #define NOMINMAX
 #endif
 
-// Standard C++ libraries
 #include <Windows.h>
 #include <algorithm>
+#include <wrl.h>
 #include <iostream>
+#include <vector>
 #include <cstring>
-#include <cstdlib>
+#include <cassert>
+#include <climits>
 
-// Microsoft COM smart pointers
-#include <wrl/client.h>
-
-// DirectX 12
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
+#include <include/d3dx12/d3dx12.h>
 
-// DirectX 12 helper library
-#include "include/d3dx12/d3dx12.h"
-
-// Link DirectX libraries
 #pragma comment(lib, "d3d12.lib")
 #pragma comment(lib, "dxgi.lib")
 #pragma comment(lib, "d3dcompiler.lib")
 
-// Namespaces
 using Microsoft::WRL::ComPtr;
+using namespace DirectX;
+using namespace std;
 
-// Project utilities and interfaces
+#ifndef M_ASSERT
+#define M_ASSERT(condition, message)                       \
+    do                                                    \
+    {                                                     \
+        if (!(condition))                                 \
+        {                                                 \
+            MessageBoxA(nullptr, message, "DX12 Error",    \
+                MB_OK | MB_ICONERROR);                    \
+            ExitProcess(1);                               \
+        }                                                 \
+    } while (false)
+#endif
+
 #include "Singleton.h"
-#include "IRenderable.h"
 
-// Debug assertion
-#define M_ASSERT(_cond, _msg)                 \
-    do                                       \
-    {                                        \
-        if (!(_cond))                        \
-        {                                    \
-            OutputDebugStringA(_msg);        \
-            OutputDebugStringA("\n");        \
-            std::abort();                    \
-        }                                    \
-    } while (0)
+class WindowController;
+class Renderer;
+class Camera;
+class ToolsController;
+class CommandController;
+class Shader;
+class Texture;
+class Mesh;
+class Unit;
+class IRenderable;

@@ -1,26 +1,20 @@
-
 #pragma once
 
 #include "StandardIncludes.h"
-
-class Shader;
+#include "IRenderable.h"
 
 class Mesh : public IRenderable
 {
 public:
     Mesh();
-    virtual ~Mesh() {}
+    virtual ~Mesh();
 
-    void Initialize(
-        ID3D12Device* _device,
-        Shader* _shader);
-
-    virtual void Render(
-        ID3D12GraphicsCommandList* _commandList);
+    void Initialize(Shader* _shader);
+    void Render(XMMATRIX _viewProj) override;
 
 private:
-    void CreateVertexBuffer(ID3D12Device* _device);
-    void CreateIndexBuffer(ID3D12Device* _device);
+    void CreateVertexBuffer();
+    void CreateIndexBuffer();
 
     ComPtr<ID3D12Resource> m_vertexBuffer;
     D3D12_VERTEX_BUFFER_VIEW m_vertexBufferView;
