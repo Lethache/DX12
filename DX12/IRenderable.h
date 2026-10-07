@@ -2,40 +2,55 @@
 
 #include "StandardIncludes.h"
 
+class Shader;
+class Texture;
+
 class IRenderable
 {
 public:
     IRenderable()
     {
         m_shader = nullptr;
-        m_texture = nullptr;
+        m_texture0 = nullptr;
+        m_texture1 = nullptr;
     }
 
     virtual ~IRenderable() {}
 
-    Shader* GetShader()
+    Shader* GetShader() const
     {
         return m_shader;
     }
 
-    void SetShader(Shader* _shader)
+    void SetShader(Shader* shader)
     {
-        m_shader = _shader;
+        m_shader = shader;
     }
 
-    Texture* GetTexture()
+    Texture* GetTexture0() const
     {
-        return m_texture;
+        return m_texture0;
     }
 
-    void SetTexture(Texture* _texture)
+    void SetTexture0(Texture* texture)
     {
-        m_texture = _texture;
+        m_texture0 = texture;
     }
 
-    virtual void Render(XMMATRIX _viewProj) = 0;
+    Texture* GetTexture1() const
+    {
+        return m_texture1;
+    }
+
+    void SetTexture1(Texture* texture)
+    {
+        m_texture1 = texture;
+    }
+
+    virtual void Render(XMMATRIX viewProj) = 0;
 
 private:
     Shader* m_shader;
-    Texture* m_texture;
+    Texture* m_texture0;
+    Texture* m_texture1;
 };

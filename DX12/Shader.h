@@ -40,20 +40,26 @@ public:
         return m_constantData;
     }
 
-    void Initialize(LPCWSTR _shaderFile);
+    void Initialize(LPCWSTR shaderFile);
     void SetPipelineState();
 
+    unsigned int NextSRVIndex();
+
 private:
-    void CompileShaders(LPCWSTR _shaderFile);
+    void CompileShaders(LPCWSTR shaderFile);
     void CreateRootSignature();
     void CreatePipelineState();
     void CreateConstantBuffer();
 
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;
+
     ComPtr<ID3DBlob> m_vertexShader;
     ComPtr<ID3DBlob> m_pixelShader;
+
     ComPtr<ID3D12DescriptorHeap> m_descrHeap;
     ComPtr<ID3D12Resource> m_constantBuffer;
+
     ConstantBuffer* m_constantData;
+    unsigned int m_srvIndex;
 };

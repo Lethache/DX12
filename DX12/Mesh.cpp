@@ -13,8 +13,11 @@ Mesh::Mesh()
 
 Mesh::~Mesh()
 {
-    delete GetTexture();
-    SetTexture(nullptr);
+    delete GetTexture0();
+    SetTexture0(nullptr);
+
+    delete GetTexture1();
+    SetTexture1(nullptr);
 }
 
 void Mesh::Initialize(Shader* shader)
@@ -24,13 +27,21 @@ void Mesh::Initialize(Shader* shader)
     CreateVertexBuffer();
     CreateIndexBuffer();
 
-    Texture* texture = new Texture();
+    Texture* texture0 = new Texture();
 
-    texture->Initialize(
+    texture0->Initialize(
         L"..\\Assets\\Textures\\Wood.dds",
-        shader->GetDescrHeap().Get());
+        shader);
 
-    SetTexture(texture);
+    SetTexture0(texture0);
+
+    Texture* texture1 = new Texture();
+
+    texture1->Initialize(
+        L"..\\Assets\\Textures\\Emoji.dds",
+        shader);
+
+    SetTexture1(texture1);
 }
 
 void Mesh::CreateVertexBuffer()
@@ -166,9 +177,6 @@ void Mesh::Render(XMMATRIX matrix)
         renderer->GetCommands()->GetCommandList();
 
     GetShader()->SetPipelineState();
-
-    GetTexture()->SetPipelineState(
-        GetShader()->GetDescrHeap().Get());
 
     XMStoreFloat4x4(
         &GetShader()->GetConstantData()

@@ -1,4 +1,5 @@
 #include "Texture.h"
+#include "Shader.h"
 #include "Renderer.h"
 #include "CommandController.h"
 
@@ -14,11 +15,11 @@ Texture::~Texture()
 
 void Texture::Initialize(
     const std::wstring& filename,
-    ID3D12DescriptorHeap* descriptorHeap)
+    Shader* shader)
 {
     LoadTextureFromFile(filename);
     CreateTexture();
-    CreateShaderResourceView(descriptorHeap);
+    CreateShaderResourceView(shader);
     UploadTexture();
 }
 
@@ -67,10 +68,18 @@ void Texture::CreateTexture()
         "Failed to create DDS texture.");
 }
 
-void Texture::CreateShaderResourceView(
-    ID3D12DescriptorHeap* descriptorHeap)
+void Texture::CreateShaderResourceView(Shader* shader)
 {
     auto device = Renderer::GetInstance().GetDevice();
+
+    UINT descriptorSize =
+        device->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
+        shader->GetDescrHeap()->GetCPUDescriptorHandleForHeapStart(),
+        shader->NextSRVIndex(),
+        descriptorSize);
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
 
@@ -81,15 +90,6 @@ void Texture::CreateShaderResourceView(
     srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
     srvDesc.Texture2D.MostDetailedMip = 0;
     srvDesc.Texture2D.MipLevels = 1;
-
-    UINT descriptorSize =
-        device->GetDescriptorHandleIncrementSize(
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-    CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
-        descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
-        1,
-        descriptorSize);
 
     device->CreateShaderResourceView(
         m_texture.Get(),
@@ -181,23 +181,4 @@ void Texture::UploadTexture()
     commands->Execute();
 
     renderer->WaitForPreviousFrame();
-}
-
-void Texture::SetPipelineState(
-    ID3D12DescriptorHeap* descriptorHeap)
-{
-    auto renderer = &Renderer::GetInstance();
-    auto device = renderer->GetDevice();
-
-    UINT descriptorSize =
-        device->GetDescriptorHandleIncrementSize(
-            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-
-    CD3DX12_GPU_DESCRIPTOR_HANDLE handle(
-        descriptorHeap->GetGPUDescriptorHandleForHeapStart(),
-        1,
-        descriptorSize);
-
-    renderer->GetCommands()->GetCommandList()
-        ->SetGraphicsRootDescriptorTable(1, handle);
 }

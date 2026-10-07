@@ -3,6 +3,8 @@
 #include "StandardIncludes.h"
 #include "DDSLoad.h"
 
+class Shader;
+
 class Texture
 {
 public:
@@ -11,18 +13,12 @@ public:
 
     void Initialize(
         const std::wstring& filename,
-        ID3D12DescriptorHeap* descriptorHeap);
-
-    void SetPipelineState(
-        ID3D12DescriptorHeap* descriptorHeap);
+        Shader* shader);
 
 private:
     void LoadTextureFromFile(const std::wstring& filename);
     void CreateTexture();
-
-    void CreateShaderResourceView(
-        ID3D12DescriptorHeap* descriptorHeap);
-
+    void CreateShaderResourceView(Shader* shader);
     void UploadTexture();
 
     DDSLoad* m_ddsLoader;

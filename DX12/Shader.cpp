@@ -5,6 +5,7 @@
 Shader::Shader()
 {
     m_constantData = nullptr;
+    m_srvIndex = 0;
 }
 
 Shader::~Shader()
@@ -16,15 +17,24 @@ Shader::~Shader()
     }
 }
 
-void Shader::Initialize(LPCWSTR _shaderFile)
+void Shader::Initialize(LPCWSTR shaderFile)
 {
-    CompileShaders(_shaderFile);
+    CompileShaders(shaderFile);
     CreateRootSignature();
     CreatePipelineState();
     CreateConstantBuffer();
 }
 
-void Shader::CompileShaders(LPCWSTR _shaderFile)
+unsigned int Shader::NextSRVIndex()
+{
+    M_ASSERT(
+        m_srvIndex < 2,
+        "This shader supports only two textures.");
+
+    return ++m_srvIndex;
+}
+
+void Shader::CompileShaders(LPCWSTR shaderFile)
 {
     UINT flags = 0;
 
@@ -32,203 +42,295 @@ void Shader::CompileShaders(LPCWSTR _shaderFile)
     flags = D3DCOMPILE_DEBUG | D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
-    ComPtr<ID3DBlob> errors;
+    ComPtr<ID3DBlob> error;
 
     HRESULT result = D3DCompileFromFile(
-        _shaderFile,
+        shaderFile,
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "VSMain",
         "vs_5_0",
         flags,
         0,
-        &m_vertexShader,
-        &errors);
+        m_vertexShader.GetAddressOf(),
+        error.GetAddressOf());
 
-    if (FAILED(result))
-    {
-        M_ASSERT(false, errors
-            ? static_cast<const char*>(errors->GetBufferPointer())
-            : "Cannot open shaders.hlsl or compile vertex shader.");
-    }
+    M_ASSERT(
+        SUCCEEDED(result),
+        error
+        ? static_cast<const char*>(error->GetBufferPointer())
+        : "Failed to compile vertex shader.");
 
-    errors.Reset();
+    error.Reset();
 
     result = D3DCompileFromFile(
-        _shaderFile,
+        shaderFile,
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "PSMain",
         "ps_5_0",
         flags,
         0,
-        &m_pixelShader,
-        &errors);
+        m_pixelShader.GetAddressOf(),
+        error.GetAddressOf());
 
-    if (FAILED(result))
-    {
-        M_ASSERT(false, errors
-            ? static_cast<const char*>(errors->GetBufferPointer())
-            : "Failed to compile pixel shader.");
-    }
+    M_ASSERT(
+        SUCCEEDED(result),
+        error
+        ? static_cast<const char*>(error->GetBufferPointer())
+        : "Failed to compile pixel shader.");
 }
 
 void Shader::CreateRootSignature()
 {
-    CD3DX12_ROOT_PARAMETER parameters[2];
+    auto device = Renderer::GetInstance().GetDevice();
 
     CD3DX12_DESCRIPTOR_RANGE srvRange;
-    srvRange.Init(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
+    srvRange.Init(
+        D3D12_DESCRIPTOR_RANGE_TYPE_SRV,
+        2,
+        0);
 
-    parameters[0].InitAsConstantBufferView(0);
-    parameters[1].InitAsDescriptorTable(
-        1, &srvRange, D3D12_SHADER_VISIBILITY_PIXEL);
+    CD3DX12_ROOT_PARAMETER rootParameters[2];
+
+    rootParameters[0].InitAsConstantBufferView(0);
+
+    rootParameters[1].InitAsDescriptorTable(
+        1,
+        &srvRange,
+        D3D12_SHADER_VISIBILITY_PIXEL);
 
     D3D12_STATIC_SAMPLER_DESC sampler = {};
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+
     sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+
     sampler.MaxAnisotropy = 1;
-    sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-    sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
+    sampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    sampler.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_BLACK;
+
     sampler.MinLOD = 0.0f;
     sampler.MaxLOD = D3D12_FLOAT32_MAX;
+
     sampler.ShaderRegister = 0;
+    sampler.RegisterSpace = 0;
     sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    CD3DX12_ROOT_SIGNATURE_DESC desc;
-    desc.Init(
-        _countof(parameters),
-        parameters,
+    CD3DX12_ROOT_SIGNATURE_DESC rootDesc;
+
+    rootDesc.Init(
+        _countof(rootParameters),
+        rootParameters,
         1,
         &sampler,
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT);
 
     ComPtr<ID3DBlob> signature;
-    ComPtr<ID3DBlob> errors;
+    ComPtr<ID3DBlob> error;
 
     HRESULT result = D3D12SerializeRootSignature(
-        &desc, D3D_ROOT_SIGNATURE_VERSION_1, &signature, &errors);
+        &rootDesc,
+        D3D_ROOT_SIGNATURE_VERSION_1,
+        signature.GetAddressOf(),
+        error.GetAddressOf());
 
-    if (FAILED(result))
-    {
-        M_ASSERT(false, errors
-            ? static_cast<const char*>(errors->GetBufferPointer())
-            : "Failed to serialize root signature.");
-    }
+    M_ASSERT(
+        SUCCEEDED(result),
+        error
+        ? static_cast<const char*>(error->GetBufferPointer())
+        : "Failed to serialize root signature.");
 
-    auto device = Renderer::GetInstance().GetDevice().Get();
-
-    M_ASSERT(SUCCEEDED(device->CreateRootSignature(
+    result = device->CreateRootSignature(
         0,
         signature->GetBufferPointer(),
         signature->GetBufferSize(),
-        IID_PPV_ARGS(&m_rootSignature))),
+        IID_PPV_ARGS(m_rootSignature.GetAddressOf()));
+
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to create root signature.");
 }
 
 void Shader::CreatePipelineState()
 {
-    D3D12_INPUT_ELEMENT_DESC input[] =
+    auto device = Renderer::GetInstance().GetDevice();
+
+    D3D12_INPUT_ELEMENT_DESC inputLayout[] =
     {
         {
-            "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT,
-            0, 0, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+            "POSITION", 0,
+            DXGI_FORMAT_R32G32B32_FLOAT,
+            0, 0,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
         },
         {
-            "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT,
-            0, 12, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+            "COLOR", 0,
+            DXGI_FORMAT_R32G32B32A32_FLOAT,
+            0, 12,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
         },
         {
-            "TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT,
-            0, 28, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
+            "TEXCOORD", 0,
+            DXGI_FORMAT_R32G32_FLOAT,
+            0, 28,
+            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
         }
     };
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
 
-    desc.InputLayout = { input, _countof(input) };
-    desc.pRootSignature = m_rootSignature.Get();
-    desc.VS = CD3DX12_SHADER_BYTECODE(m_vertexShader.Get());
-    desc.PS = CD3DX12_SHADER_BYTECODE(m_pixelShader.Get());
+    desc.InputLayout =
+    {
+        inputLayout,
+        _countof(inputLayout)
+    };
 
-    desc.RasterizerState = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
-    desc.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
-    desc.DepthStencilState = CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
+    desc.pRootSignature = m_rootSignature.Get();
+
+    desc.VS =
+    {
+        m_vertexShader->GetBufferPointer(),
+        m_vertexShader->GetBufferSize()
+    };
+
+    desc.PS =
+    {
+        m_pixelShader->GetBufferPointer(),
+        m_pixelShader->GetBufferSize()
+    };
+
+    desc.RasterizerState =
+        CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT);
+
+    desc.BlendState =
+        CD3DX12_BLEND_DESC(D3D12_DEFAULT);
+
+    desc.DepthStencilState =
+        CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 
     desc.DepthStencilState.DepthEnable = FALSE;
     desc.DepthStencilState.StencilEnable = FALSE;
 
     desc.SampleMask = UINT_MAX;
-    desc.PrimitiveTopologyType = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+    desc.PrimitiveTopologyType =
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE;
+
     desc.NumRenderTargets = 1;
     desc.RTVFormats[0] = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.SampleDesc.Count = 1;
 
-    auto device = Renderer::GetInstance().GetDevice().Get();
+    HRESULT result = device->CreateGraphicsPipelineState(
+        &desc,
+        IID_PPV_ARGS(m_pipelineState.GetAddressOf()));
 
-    M_ASSERT(SUCCEEDED(device->CreateGraphicsPipelineState(
-        &desc, IID_PPV_ARGS(&m_pipelineState))),
-        "Failed to create graphics pipeline state.");
+    M_ASSERT(
+        SUCCEEDED(result),
+        "Failed to create pipeline state.");
 }
 
 void Shader::CreateConstantBuffer()
 {
-    auto r = &Renderer::GetInstance();
-    auto device = r->GetDevice().Get();
+    auto renderer = &Renderer::GetInstance();
+    auto device = renderer->GetDevice();
 
     const UINT64 elementSize = sizeof(ConstantBuffer);
-    const UINT64 bufferSize = elementSize * r->GetFrameCount();
 
-    auto heap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto desc = CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+    const UINT64 bufferSize =
+        elementSize * renderer->GetFrameCount();
 
-    M_ASSERT(SUCCEEDED(device->CreateCommittedResource(
-        &heap,
+    CD3DX12_HEAP_PROPERTIES heapProperties(
+        D3D12_HEAP_TYPE_UPLOAD);
+
+    auto bufferDesc =
+        CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+
+    HRESULT result = device->CreateCommittedResource(
+        &heapProperties,
         D3D12_HEAP_FLAG_NONE,
-        &desc,
+        &bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(&m_constantBuffer))),
+        IID_PPV_ARGS(m_constantBuffer.GetAddressOf()));
+
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to create constant buffer.");
 
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
-    heapDesc.NumDescriptors = 2;
+    heapDesc.NumDescriptors = 3;
     heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
-    M_ASSERT(SUCCEEDED(device->CreateDescriptorHeap(
-        &heapDesc, IID_PPV_ARGS(&m_descrHeap))),
-        "Failed to create CBV/SRV descriptor heap.");
+    result = device->CreateDescriptorHeap(
+        &heapDesc,
+        IID_PPV_ARGS(m_descrHeap.GetAddressOf()));
+
+    M_ASSERT(
+        SUCCEEDED(result),
+        "Failed to create descriptor heap.");
 
     D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
-    cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
+    cbvDesc.BufferLocation =
+        m_constantBuffer->GetGPUVirtualAddress();
+
     cbvDesc.SizeInBytes = static_cast<UINT>(elementSize);
 
     device->CreateConstantBufferView(
-        &cbvDesc, m_descrHeap->GetCPUDescriptorHandleForHeapStart());
+        &cbvDesc,
+        m_descrHeap->GetCPUDescriptorHandleForHeapStart());
 
     CD3DX12_RANGE readRange(0, 0);
 
-    M_ASSERT(SUCCEEDED(m_constantBuffer->Map(
-        0, &readRange, reinterpret_cast<void**>(&m_constantData))),
+    result = m_constantBuffer->Map(
+        0,
+        &readRange,
+        reinterpret_cast<void**>(&m_constantData));
+
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to map constant buffer.");
+
+    memset(m_constantData, 0, static_cast<size_t>(bufferSize));
 }
 
 void Shader::SetPipelineState()
 {
-    auto r = &Renderer::GetInstance();
-    auto commands = r->GetCommands()->GetCommandList().Get();
+    auto renderer = &Renderer::GetInstance();
 
-    commands->SetPipelineState(m_pipelineState.Get());
-    commands->SetGraphicsRootSignature(m_rootSignature.Get());
+    auto commandList =
+        renderer->GetCommands()->GetCommandList();
 
-    ID3D12DescriptorHeap* heaps[] = { m_descrHeap.Get() };
-    commands->SetDescriptorHeaps(_countof(heaps), heaps);
+    commandList->SetPipelineState(m_pipelineState.Get());
 
-    commands->SetGraphicsRootConstantBufferView(
+    commandList->SetGraphicsRootSignature(
+        m_rootSignature.Get());
+
+    ID3D12DescriptorHeap* heaps[] =
+    {
+        m_descrHeap.Get()
+    };
+
+    commandList->SetDescriptorHeaps(
+        _countof(heaps),
+        heaps);
+
+    commandList->SetGraphicsRootConstantBufferView(
         0,
-        m_constantBuffer->GetGPUVirtualAddress()
-        + static_cast<UINT64>(r->GetFrameIndex()) * sizeof(ConstantBuffer));
+        m_constantBuffer->GetGPUVirtualAddress() +
+        renderer->GetFrameIndex() * sizeof(ConstantBuffer));
+
+    UINT descriptorSize =
+        renderer->GetDevice()->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    CD3DX12_GPU_DESCRIPTOR_HANDLE srvHandle(
+        m_descrHeap->GetGPUDescriptorHandleForHeapStart(),
+        1,
+        descriptorSize);
+
+    commandList->SetGraphicsRootDescriptorTable(
+        1,
+        srvHandle);
 }
