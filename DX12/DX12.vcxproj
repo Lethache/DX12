@@ -154,6 +154,7 @@
   <ItemGroup>
     <ClInclude Include="Camera.h" />
     <ClInclude Include="CommandController.h" />
+    <ClInclude Include="DDSLoad.h" />
     <ClInclude Include="GameController.h" />
     <ClInclude Include="IRenderable.h" />
     <ClInclude Include="Mesh.h" />
@@ -169,6 +170,7 @@
   <ItemGroup>
     <ClCompile Include="Camera.cpp" />
     <ClCompile Include="CommandController.cpp" />
+    <ClCompile Include="DDSLoad.cpp" />
     <ClCompile Include="GameController.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Mesh.cpp" />

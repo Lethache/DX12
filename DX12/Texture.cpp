@@ -4,102 +4,173 @@
 
 Texture::Texture()
 {
-    m_width = 256;
-    m_height = 256;
-    m_pixelSize = 4;
+    m_ddsLoader = nullptr;
 }
 
-void Texture::Initialize(ID3D12DescriptorHeap* _descrHeap)
+Texture::~Texture()
 {
+    delete m_ddsLoader;
+}
+
+void Texture::Initialize(
+    const std::wstring& filename,
+    ID3D12DescriptorHeap* descriptorHeap)
+{
+    LoadTextureFromFile(filename);
     CreateTexture();
-    CreateShaderResourceView(_descrHeap);
+    CreateShaderResourceView(descriptorHeap);
     UploadTexture();
+}
+
+void Texture::LoadTextureFromFile(
+    const std::wstring& filename)
+{
+    delete m_ddsLoader;
+
+    m_ddsLoader = new DDSLoad();
+    m_ddsLoader->Load(filename);
 }
 
 void Texture::CreateTexture()
 {
-    D3D12_RESOURCE_DESC desc = {};
-    desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
-    desc.Width = m_width;
-    desc.Height = m_height;
-    desc.DepthOrArraySize = 1;
-    desc.MipLevels = 1;
-    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    desc.SampleDesc.Count = 1;
-    desc.Flags = D3D12_RESOURCE_FLAG_NONE;
+    auto device = Renderer::GetInstance().GetDevice();
 
-    auto heap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_DEFAULT);
-    auto device = Renderer::GetInstance().GetDevice().Get();
+    const DDS_HEADER* header =
+        m_ddsLoader->GetHeader();
 
-    M_ASSERT(SUCCEEDED(device->CreateCommittedResource(
-        &heap,
+    D3D12_RESOURCE_DESC textureDesc = {};
+    textureDesc.Dimension =
+        D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+
+    textureDesc.Width = header->width;
+    textureDesc.Height = header->height;
+    textureDesc.DepthOrArraySize = 1;
+    textureDesc.MipLevels = 1;
+    textureDesc.Format = m_ddsLoader->GetFormat();
+    textureDesc.SampleDesc.Count = 1;
+    textureDesc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+    textureDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
+
+    CD3DX12_HEAP_PROPERTIES heapProperties(
+        D3D12_HEAP_TYPE_DEFAULT);
+
+    HRESULT result = device->CreateCommittedResource(
+        &heapProperties,
         D3D12_HEAP_FLAG_NONE,
-        &desc,
+        &textureDesc,
         D3D12_RESOURCE_STATE_COPY_DEST,
         nullptr,
-        IID_PPV_ARGS(&m_texture))),
-        "Failed to create texture.");
+        IID_PPV_ARGS(m_texture.GetAddressOf()));
+
+    M_ASSERT(
+        SUCCEEDED(result),
+        "Failed to create DDS texture.");
 }
 
 void Texture::CreateShaderResourceView(
-    ID3D12DescriptorHeap* _descrHeap)
+    ID3D12DescriptorHeap* descriptorHeap)
 {
-    auto device = Renderer::GetInstance().GetDevice().Get();
+    auto device = Renderer::GetInstance().GetDevice();
 
-    UINT size = device->GetDescriptorHandleIncrementSize(
-        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc = {};
+
+    srvDesc.Shader4ComponentMapping =
+        D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+
+    srvDesc.Format = m_ddsLoader->GetFormat();
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Texture2D.MostDetailedMip = 0;
+    srvDesc.Texture2D.MipLevels = 1;
+
+    UINT descriptorSize =
+        device->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
-        _descrHeap->GetCPUDescriptorHandleForHeapStart(), 1, size);
-
-    D3D12_SHADER_RESOURCE_VIEW_DESC desc = {};
-    desc.Shader4ComponentMapping =
-        D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-    desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    desc.Texture2D.MipLevels = 1;
+        descriptorHeap->GetCPUDescriptorHandleForHeapStart(),
+        1,
+        descriptorSize);
 
     device->CreateShaderResourceView(
-        m_texture.Get(), &desc, handle);
+        m_texture.Get(),
+        &srvDesc,
+        handle);
 }
 
 void Texture::UploadTexture()
 {
-    auto r = &Renderer::GetInstance();
-    auto device = r->GetDevice().Get();
+    auto renderer = &Renderer::GetInstance();
+    auto device = renderer->GetDevice();
+    auto commands = renderer->GetCommands();
 
-    ComPtr<ID3D12Resource> uploadHeap;
+    const DDS_HEADER* header =
+        m_ddsLoader->GetHeader();
 
-    UINT64 size = GetRequiredIntermediateSize(
-        m_texture.Get(), 0, 1);
+    DXGI_FORMAT format = m_ddsLoader->GetFormat();
 
-    auto heap = CD3DX12_HEAP_PROPERTIES(D3D12_HEAP_TYPE_UPLOAD);
-    auto desc = CD3DX12_RESOURCE_DESC::Buffer(size);
+    UINT bytesPerBlock =
+        (format == DXGI_FORMAT_BC1_UNORM ||
+            format == DXGI_FORMAT_BC4_UNORM)
+        ? 8
+        : 16;
 
-    M_ASSERT(SUCCEEDED(device->CreateCommittedResource(
-        &heap,
+    size_t blocksWide =
+        (static_cast<size_t>(header->width) + 3) / 4;
+
+    size_t blocksHigh =
+        (static_cast<size_t>(header->height) + 3) / 4;
+
+    size_t rowPitch = blocksWide * bytesPerBlock;
+    size_t slicePitch = rowPitch * blocksHigh;
+
+    M_ASSERT(
+        m_ddsLoader->GetSize() >= slicePitch,
+        "DDS texture data is incomplete.");
+
+    UINT64 uploadSize = GetRequiredIntermediateSize(
+        m_texture.Get(),
+        0,
+        1);
+
+    ComPtr<ID3D12Resource> uploadBuffer;
+
+    CD3DX12_HEAP_PROPERTIES heapProperties(
+        D3D12_HEAP_TYPE_UPLOAD);
+
+    auto bufferDesc =
+        CD3DX12_RESOURCE_DESC::Buffer(uploadSize);
+
+    HRESULT result = device->CreateCommittedResource(
+        &heapProperties,
         D3D12_HEAP_FLAG_NONE,
-        &desc,
+        &bufferDesc,
         D3D12_RESOURCE_STATE_GENERIC_READ,
         nullptr,
-        IID_PPV_ARGS(&uploadHeap))),
-        "Failed to create texture upload heap.");
+        IID_PPV_ARGS(uploadBuffer.GetAddressOf()));
 
-    std::vector<UINT8> pixels = GenerateTextureData();
+    M_ASSERT(
+        SUCCEEDED(result),
+        "Failed to create texture upload buffer.");
 
-    D3D12_SUBRESOURCE_DATA data = {};
-    data.pData = pixels.data();
-    data.RowPitch = m_width * m_pixelSize;
-    data.SlicePitch = data.RowPitch * m_height;
+    D3D12_SUBRESOURCE_DATA textureData = {};
+    textureData.pData = m_ddsLoader->GetData();
 
-    auto commands = r->GetCommands();
+    textureData.RowPitch =
+        static_cast<LONG_PTR>(rowPitch);
+
+    textureData.SlicePitch =
+        static_cast<LONG_PTR>(slicePitch);
+
     commands->Reset();
 
     UpdateSubresources(
         commands->GetCommandList().Get(),
         m_texture.Get(),
-        uploadHeap.Get(),
-        0, 0, 1, &data);
+        uploadBuffer.Get(),
+        0,
+        0,
+        1,
+        &textureData);
 
     commands->AddBarrier(
         m_texture.Get(),
@@ -109,45 +180,24 @@ void Texture::UploadTexture()
     commands->Close();
     commands->Execute();
 
-    r->WaitForPreviousFrame();
+    renderer->WaitForPreviousFrame();
 }
 
-std::vector<UINT8> Texture::GenerateTextureData()
+void Texture::SetPipelineState(
+    ID3D12DescriptorHeap* descriptorHeap)
 {
-    const UINT rowPitch = m_width * m_pixelSize;
-    const UINT cellWidth = m_width / 8;
-    const UINT cellHeight = m_height / 8;
+    auto renderer = &Renderer::GetInstance();
+    auto device = renderer->GetDevice();
 
-    std::vector<UINT8> data(rowPitch * m_height);
-
-    for (UINT y = 0; y < m_height; ++y)
-    {
-        for (UINT x = 0; x < m_width; ++x)
-        {
-            UINT offset = y * rowPitch + x * m_pixelSize;
-            bool black = (x / cellWidth) % 2 == (y / cellHeight) % 2;
-            UINT8 color = black ? 0 : 255;
-
-            data[offset] = color;
-            data[offset + 1] = color;
-            data[offset + 2] = color;
-            data[offset + 3] = 255;
-        }
-    }
-
-    return data;
-}
-
-void Texture::SetPipelineState(ID3D12DescriptorHeap* _descrHeap)
-{
-    auto r = &Renderer::GetInstance();
-
-    UINT size = r->GetDevice()->GetDescriptorHandleIncrementSize(
-        D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    UINT descriptorSize =
+        device->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     CD3DX12_GPU_DESCRIPTOR_HANDLE handle(
-        _descrHeap->GetGPUDescriptorHandleForHeapStart(), 1, size);
+        descriptorHeap->GetGPUDescriptorHandleForHeapStart(),
+        1,
+        descriptorSize);
 
-    r->GetCommands()->GetCommandList()
+    renderer->GetCommands()->GetCommandList()
         ->SetGraphicsRootDescriptorTable(1, handle);
 }

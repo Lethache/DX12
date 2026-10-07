@@ -57,6 +57,9 @@
     <ClInclude Include="Texture.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="DDSLoad.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WindowController.cpp">
@@ -90,6 +93,9 @@
       <Filter>Resource Files</Filter>
     </ClCompile>
     <ClCompile Include="Texture.cpp">
+      <Filter>Resource Files</Filter>
+    </ClCompile>
+    <ClCompile Include="DDSLoad.cpp">
       <Filter>Resource Files</Filter>
     </ClCompile>
   </ItemGroup>

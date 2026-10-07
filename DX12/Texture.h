@@ -1,24 +1,30 @@
 #pragma once
 
 #include "StandardIncludes.h"
+#include "DDSLoad.h"
 
 class Texture
 {
 public:
     Texture();
-    virtual ~Texture() {}
+    ~Texture();
 
-    void Initialize(ID3D12DescriptorHeap* _descrHeap);
-    void SetPipelineState(ID3D12DescriptorHeap* _descrHeap);
+    void Initialize(
+        const std::wstring& filename,
+        ID3D12DescriptorHeap* descriptorHeap);
+
+    void SetPipelineState(
+        ID3D12DescriptorHeap* descriptorHeap);
 
 private:
+    void LoadTextureFromFile(const std::wstring& filename);
     void CreateTexture();
-    void CreateShaderResourceView(ID3D12DescriptorHeap* _descrHeap);
-    void UploadTexture();
-    std::vector<UINT8> GenerateTextureData();
 
+    void CreateShaderResourceView(
+        ID3D12DescriptorHeap* descriptorHeap);
+
+    void UploadTexture();
+
+    DDSLoad* m_ddsLoader;
     ComPtr<ID3D12Resource> m_texture;
-    UINT m_width;
-    UINT m_height;
-    UINT m_pixelSize;
 };
