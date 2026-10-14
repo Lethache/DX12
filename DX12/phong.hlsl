@@ -2,6 +2,12 @@ cbuffer SceneData : register(b0)
 {
     float4x4 WVP;
     float4 DiffuseColor;
+    float4 AmbientLight;
+
+    float3 LightDirection;
+    float pad0;
+
+    float4 LightColor;
 };
 
 struct PSInput
@@ -34,5 +40,17 @@ PSInput VSMain(VSInput input)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    return g_diffuse.Sample(g_sampler, input.uv) * DiffuseColor;
+    float3 lightDir = normalize(-LightDirection);
+
+    float lambertian = saturate(
+        dot(lightDir, normalize(input.normal)));
+
+    float4 color =
+        g_diffuse.Sample(g_sampler, input.uv)
+        * DiffuseColor
+        * LightColor;
+
+    float4 intensity = AmbientLight + lambertian;
+
+    return color * intensity;
 }

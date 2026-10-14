@@ -11,6 +11,12 @@ public:
     {
         XMFLOAT4X4 WVP;
         XMFLOAT4 DiffuseColor;
+        XMFLOAT4 AmbientLight;
+
+        XMFLOAT3 LightDirection;
+        float pad0;
+
+        XMFLOAT4 LightColor;
     };
 
     void SetPipelineState() override;

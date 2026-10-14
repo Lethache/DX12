@@ -42,5 +42,16 @@ void ShaderPhong::SetPipelineState()
             renderer->GetFrameIndex() * GetConstantBufferSize());
 
     constantData->DiffuseColor =
-        XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f);
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    constantData->AmbientLight =
+        XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+
+    constantData->LightDirection =
+        XMFLOAT3(1.0f, -0.5f, 1.0f);
+
+    constantData->pad0 = 0.0f;
+
+    constantData->LightColor =
+        XMFLOAT4(0.5f, 0.0f, 0.5f, 1.0f);
 }
