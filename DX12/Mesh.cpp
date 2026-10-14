@@ -139,14 +139,22 @@ void Mesh::CreateVertexBuffer()
 
 void Mesh::Render(XMMATRIX viewProj)
 {
+    GetShader()->SetPipelineState();
+
     auto renderer = &Renderer::GetInstance();
+
     auto commandList =
         renderer->GetCommands()->GetCommandList();
 
-    GetShader()->SetPipelineState();
+    unsigned char* base =
+        reinterpret_cast<unsigned char*>(
+            GetShader()->GetConstantData());
 
     ConstantBuffer* constantData =
-        &GetShader()->GetConstantData()[renderer->GetFrameIndex()];
+        reinterpret_cast<ConstantBuffer*>(
+            base +
+            renderer->GetFrameIndex() *
+            GetShader()->GetConstantBufferSize());
 
     XMStoreFloat4x4(
         &constantData->WVP,

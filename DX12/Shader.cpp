@@ -5,8 +5,11 @@
 Shader::Shader()
 {
     m_constantData = nullptr;
+    m_constantBufferSize = sizeof(ConstantBuffer);
+
     m_srvIndex = 0;
     m_shaderFile = L"shaders.hlsl";
+
     m_inputElementDescs = nullptr;
     m_inputElemDescsSize = 0;
 }
@@ -25,7 +28,7 @@ void Shader::Initialize()
     CompileShaders();
     CreateRootSignature();
     CreatePipelineState();
-    CreateConstantBuffer();
+    CreateConstantBuffer(sizeof(ConstantBuffer));
 }
 
 unsigned int Shader::NextSRVIndex()
@@ -210,20 +213,22 @@ void Shader::CreatePipelineState()
         "Failed to create pipeline state.");
 }
 
-void Shader::CreateConstantBuffer()
+void Shader::CreateConstantBuffer(UINT64 bufferSize)
 {
     auto renderer = &Renderer::GetInstance();
     auto device = renderer->GetDevice();
 
-    const UINT64 elementSize = sizeof(ConstantBuffer);
-    const UINT64 bufferSize =
+    SetConstantBufferSize(bufferSize);
+
+    const UINT64 elementSize = GetConstantBufferSize();
+    const UINT64 totalSize =
         elementSize * renderer->GetFrameCount();
 
     CD3DX12_HEAP_PROPERTIES heapProperties(
         D3D12_HEAP_TYPE_UPLOAD);
 
     auto bufferDesc =
-        CD3DX12_RESOURCE_DESC::Buffer(bufferSize);
+        CD3DX12_RESOURCE_DESC::Buffer(totalSize);
 
     HRESULT result = device->CreateCommittedResource(
         &heapProperties,
@@ -251,6 +256,7 @@ void Shader::CreateConstantBuffer()
         "Failed to create descriptor heap.");
 
     D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+
     cbvDesc.BufferLocation =
         m_constantBuffer->GetGPUVirtualAddress();
 
@@ -271,29 +277,33 @@ void Shader::CreateConstantBuffer()
         SUCCEEDED(result),
         "Failed to map constant buffer.");
 
-    memset(m_constantData, 0, static_cast<size_t>(bufferSize));
+    memset(m_constantData, 0, static_cast<size_t>(totalSize));
 }
-
 void Shader::SetPipelineState()
 {
     auto renderer = &Renderer::GetInstance();
+
     auto commandList =
         renderer->GetCommands()->GetCommandList();
 
     commandList->SetPipelineState(m_pipelineState.Get());
-    commandList->SetGraphicsRootSignature(m_rootSignature.Get());
+
+    commandList->SetGraphicsRootSignature(
+        m_rootSignature.Get());
 
     ID3D12DescriptorHeap* heaps[] =
     {
         m_descrHeap.Get()
     };
 
-    commandList->SetDescriptorHeaps(_countof(heaps), heaps);
+    commandList->SetDescriptorHeaps(
+        _countof(heaps),
+        heaps);
 
     commandList->SetGraphicsRootConstantBufferView(
         0,
         m_constantBuffer->GetGPUVirtualAddress() +
-        renderer->GetFrameIndex() * sizeof(ConstantBuffer));
+        renderer->GetFrameIndex() * GetConstantBufferSize());
 
     UINT descriptorSize =
         renderer->GetDevice()->GetDescriptorHandleIncrementSize(
@@ -304,5 +314,7 @@ void Shader::SetPipelineState()
         1,
         descriptorSize);
 
-    commandList->SetGraphicsRootDescriptorTable(1, srvHandle);
+    commandList->SetGraphicsRootDescriptorTable(
+        1,
+        srvHandle);
 }

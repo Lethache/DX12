@@ -50,18 +50,28 @@ public:
         m_shaderFile = shaderFile;
     }
 
+    void SetConstantBufferSize(UINT64 size)
+    {
+        m_constantBufferSize = (size + 255ULL) & ~255ULL;
+    }
+
+    UINT64 GetConstantBufferSize() const
+    {
+        return m_constantBufferSize;
+    }
+
     void Initialize();
-    void SetPipelineState();
+    virtual void SetPipelineState();
 
     unsigned int NextSRVIndex();
 
 protected:
     virtual void CreatePipelineState();
+    virtual void CreateConstantBuffer(UINT64 bufferSize);
 
 private:
     void CompileShaders();
     void CreateRootSignature();
-    void CreateConstantBuffer();
 
     ComPtr<ID3D12RootSignature> m_rootSignature;
     ComPtr<ID3D12PipelineState> m_pipelineState;
@@ -73,6 +83,8 @@ private:
     ComPtr<ID3D12Resource> m_constantBuffer;
 
     ConstantBuffer* m_constantData;
+    UINT64 m_constantBufferSize;
+
     unsigned int m_srvIndex;
 
     D3D12_INPUT_ELEMENT_DESC* m_inputElementDescs;
