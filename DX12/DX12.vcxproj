@@ -160,11 +160,13 @@
     <ClInclude Include="Mesh.h" />
     <ClInclude Include="Renderer.h" />
     <ClInclude Include="Shader.h" />
+    <ClInclude Include="ShaderPhong.h" />
     <ClInclude Include="Singleton.h" />
     <ClInclude Include="StandardIncludes.h" />
     <ClInclude Include="Texture.h" />
     <ClInclude Include="ToolsController.h" />
     <ClInclude Include="Unit.h" />
+    <ClInclude Include="VertexStructs.h" />
     <ClInclude Include="WindowController.h" />
   </ItemGroup>
   <ItemGroup>
@@ -176,6 +178,7 @@
     <ClCompile Include="Mesh.cpp" />
     <ClCompile Include="Renderer.cpp" />
     <ClCompile Include="Shader.cpp" />
+    <ClCompile Include="ShaderPhong.cpp" />
     <ClCompile Include="Texture.cpp" />
     <ClCompile Include="ToolsController.cpp" />
     <ClCompile Include="Unit.cpp" />
@@ -189,6 +192,11 @@
       <FileType>Document</FileType>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">true</ExcludedFromBuild>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="phong.hlsl">
+      <FileType>Document</FileType>
+    </Text>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

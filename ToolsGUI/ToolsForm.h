@@ -4,24 +4,20 @@ namespace ToolsGUI
 {
     using namespace System;
     using namespace System::ComponentModel;
-    using namespace System::Collections;
     using namespace System::Windows::Forms;
-    using namespace System::Data;
     using namespace System::Drawing;
 
-    public ref class ToolsForm :
-        public System::Windows::Forms::Form
+    public ref class ToolsForm : public Form
     {
     public:
-        ToolsForm(void)
+        ToolsForm()
         {
             InitializeComponent();
         }
 
-        // Checkbox components must be public
-        System::Windows::Forms::CheckBox^ checkBoxRed;
-        System::Windows::Forms::CheckBox^ checkBoxGreen;
-        System::Windows::Forms::CheckBox^ checkBoxBlue;
+        CheckBox^ checkBoxRed;
+        CheckBox^ checkBoxGreen;
+        CheckBox^ checkBoxBlue;
 
     protected:
         ~ToolsForm()
@@ -35,119 +31,55 @@ namespace ToolsGUI
     private:
         System::ComponentModel::Container^ components;
 
-#pragma region Windows Form Designer generated code
-
-        void InitializeComponent(void)
+        CheckBox^ CreateCheckBox(
+            String^ text,
+            int y,
+            bool isChecked)
         {
-            this->checkBoxRed =
-                (gcnew System::Windows::Forms::CheckBox());
+            CheckBox^ checkBox = gcnew CheckBox();
 
-            this->checkBoxGreen =
-                (gcnew System::Windows::Forms::CheckBox());
+            checkBox->Text = text;
+            checkBox->Location = Point(20, y);
+            checkBox->AutoSize = true;
+            checkBox->Checked = isChecked;
 
-            this->checkBoxBlue =
-                (gcnew System::Windows::Forms::CheckBox());
-
-            this->SuspendLayout();
-
-            // checkBoxRed
-            this->checkBoxRed->AutoSize = true;
-            this->checkBoxRed->Location =
-                System::Drawing::Point(57, 49);
-
-            this->checkBoxRed->Name =
-                L"checkBoxRed";
-
-            this->checkBoxRed->Size =
-                System::Drawing::Size(46, 17);
-
-            this->checkBoxRed->TabIndex = 0;
-            this->checkBoxRed->Text = L"Red";
-
-            this->checkBoxRed->UseVisualStyleBackColor =
-                true;
-
-            this->checkBoxRed->CheckedChanged +=
-                gcnew System::EventHandler(
-                    this,
-                    &ToolsForm::checkBox1_CheckedChanged);
-
-            // checkBoxGreen
-            this->checkBoxGreen->AutoSize = true;
-
-            this->checkBoxGreen->Location =
-                System::Drawing::Point(57, 73);
-
-            this->checkBoxGreen->Name =
-                L"checkBoxGreen";
-
-            this->checkBoxGreen->Size =
-                System::Drawing::Size(55, 17);
-
-            this->checkBoxGreen->TabIndex = 1;
-            this->checkBoxGreen->Text = L"Green";
-
-            this->checkBoxGreen->UseVisualStyleBackColor =
-                true;
-
-            // checkBoxBlue
-            this->checkBoxBlue->AutoSize = true;
-
-            this->checkBoxBlue->Location =
-                System::Drawing::Point(57, 97);
-
-            this->checkBoxBlue->Name =
-                L"checkBoxBlue";
-
-            this->checkBoxBlue->Size =
-                System::Drawing::Size(47, 17);
-
-            this->checkBoxBlue->TabIndex = 2;
-            this->checkBoxBlue->Text = L"Blue";
-
-            this->checkBoxBlue->UseVisualStyleBackColor =
-                true;
-
-            // ToolsForm
-            this->AutoScaleDimensions =
-                System::Drawing::SizeF(6, 13);
-
-            this->AutoScaleMode =
-                System::Windows::Forms::AutoScaleMode::Font;
-
-            this->ClientSize =
-                System::Drawing::Size(283, 342);
-
-            this->ControlBox = false;
-
-            this->Controls->Add(
-                this->checkBoxBlue);
-
-            this->Controls->Add(
-                this->checkBoxGreen);
-
-            this->Controls->Add(
-                this->checkBoxRed);
-
-            this->FormBorderStyle =
-                System::Windows::Forms::
-                FormBorderStyle::FixedToolWindow;
-
-            this->Name = L"ToolsForm";
-            this->Text = L"ToolsForm";
-            this->TopMost = true;
-
-            this->ResumeLayout(false);
-            this->PerformLayout();
+            return checkBox;
         }
 
-#pragma endregion
-
-    private:
-        System::Void checkBox1_CheckedChanged(
-            System::Object^ sender,
-            System::EventArgs^ e)
+        void InitializeComponent()
         {
+            components =
+                gcnew System::ComponentModel::Container();
+
+            SuspendLayout();
+
+            checkBoxRed = CreateCheckBox(L"Red", 25, false);
+            checkBoxGreen = CreateCheckBox(L"Green", 45, true);
+            checkBoxBlue = CreateCheckBox(L"Blue", 65, false);
+
+            Controls->Add(checkBoxRed);
+            Controls->Add(checkBoxGreen);
+            Controls->Add(checkBoxBlue);
+
+            AutoScaleDimensions = SizeF(6.0f, 13.0f);
+            AutoScaleMode =
+                System::Windows::Forms::AutoScaleMode::Font;
+
+            ClientSize = System::Drawing::Size(135, 250);
+
+            FormBorderStyle =
+                System::Windows::Forms::FormBorderStyle::FixedToolWindow;
+
+            ControlBox = false;
+            MaximizeBox = false;
+            MinimizeBox = false;
+
+            Name = L"ToolsForm";
+            Text = L"ToolsForm";
+            TopMost = true;
+
+            ResumeLayout(false);
+            PerformLayout();
         }
     };
 }

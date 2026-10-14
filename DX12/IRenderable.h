@@ -11,7 +11,7 @@ public:
     IRenderable()
     {
         m_shader = nullptr;
-        m_texture0 = nullptr;
+        m_texDiffuse = nullptr;
         m_texture1 = nullptr;
     }
 
@@ -27,14 +27,24 @@ public:
         m_shader = shader;
     }
 
+    Texture* GetTexDiffuse() const
+    {
+        return m_texDiffuse;
+    }
+
+    void SetTexDiffuse(Texture* texture)
+    {
+        m_texDiffuse = texture;
+    }
+
     Texture* GetTexture0() const
     {
-        return m_texture0;
+        return m_texDiffuse;
     }
 
     void SetTexture0(Texture* texture)
     {
-        m_texture0 = texture;
+        m_texDiffuse = texture;
     }
 
     Texture* GetTexture1() const
@@ -51,6 +61,6 @@ public:
 
 private:
     Shader* m_shader;
-    Texture* m_texture0;
+    Texture* m_texDiffuse;
     Texture* m_texture1;
 };

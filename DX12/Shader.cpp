@@ -6,6 +6,9 @@ Shader::Shader()
 {
     m_constantData = nullptr;
     m_srvIndex = 0;
+    m_shaderFile = L"shaders.hlsl";
+    m_inputElementDescs = nullptr;
+    m_inputElemDescsSize = 0;
 }
 
 Shader::~Shader()
@@ -17,9 +20,9 @@ Shader::~Shader()
     }
 }
 
-void Shader::Initialize(LPCWSTR shaderFile)
+void Shader::Initialize()
 {
-    CompileShaders(shaderFile);
+    CompileShaders();
     CreateRootSignature();
     CreatePipelineState();
     CreateConstantBuffer();
@@ -34,7 +37,7 @@ unsigned int Shader::NextSRVIndex()
     return ++m_srvIndex;
 }
 
-void Shader::CompileShaders(LPCWSTR shaderFile)
+void Shader::CompileShaders()
 {
     UINT flags = 0;
 
@@ -45,7 +48,7 @@ void Shader::CompileShaders(LPCWSTR shaderFile)
     ComPtr<ID3DBlob> error;
 
     HRESULT result = D3DCompileFromFile(
-        shaderFile,
+        m_shaderFile,
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "VSMain",
@@ -64,7 +67,7 @@ void Shader::CompileShaders(LPCWSTR shaderFile)
     error.Reset();
 
     result = D3DCompileFromFile(
-        shaderFile,
+        m_shaderFile,
         nullptr,
         D3D_COMPILE_STANDARD_FILE_INCLUDE,
         "PSMain",
@@ -119,7 +122,6 @@ void Shader::CreateRootSignature()
     sampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
     CD3DX12_ROOT_SIGNATURE_DESC rootDesc;
-
     rootDesc.Init(
         _countof(rootParameters),
         rootParameters,
@@ -157,34 +159,12 @@ void Shader::CreatePipelineState()
 {
     auto device = Renderer::GetInstance().GetDevice();
 
-    D3D12_INPUT_ELEMENT_DESC inputLayout[] =
-    {
-        {
-            "POSITION", 0,
-            DXGI_FORMAT_R32G32B32_FLOAT,
-            0, 0,
-            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-        },
-        {
-            "COLOR", 0,
-            DXGI_FORMAT_R32G32B32A32_FLOAT,
-            0, 12,
-            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-        },
-        {
-            "TEXCOORD", 0,
-            DXGI_FORMAT_R32G32_FLOAT,
-            0, 28,
-            D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0
-        }
-    };
-
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc = {};
 
     desc.InputLayout =
     {
-        inputLayout,
-        _countof(inputLayout)
+        m_inputElementDescs,
+        m_inputElemDescsSize
     };
 
     desc.pRootSignature = m_rootSignature.Get();
@@ -236,7 +216,6 @@ void Shader::CreateConstantBuffer()
     auto device = renderer->GetDevice();
 
     const UINT64 elementSize = sizeof(ConstantBuffer);
-
     const UINT64 bufferSize =
         elementSize * renderer->GetFrameCount();
 
@@ -298,23 +277,18 @@ void Shader::CreateConstantBuffer()
 void Shader::SetPipelineState()
 {
     auto renderer = &Renderer::GetInstance();
-
     auto commandList =
         renderer->GetCommands()->GetCommandList();
 
     commandList->SetPipelineState(m_pipelineState.Get());
-
-    commandList->SetGraphicsRootSignature(
-        m_rootSignature.Get());
+    commandList->SetGraphicsRootSignature(m_rootSignature.Get());
 
     ID3D12DescriptorHeap* heaps[] =
     {
         m_descrHeap.Get()
     };
 
-    commandList->SetDescriptorHeaps(
-        _countof(heaps),
-        heaps);
+    commandList->SetDescriptorHeaps(_countof(heaps), heaps);
 
     commandList->SetGraphicsRootConstantBufferView(
         0,
@@ -330,7 +304,5 @@ void Shader::SetPipelineState()
         1,
         descriptorSize);
 
-    commandList->SetGraphicsRootDescriptorTable(
-        1,
-        srvHandle);
+    commandList->SetGraphicsRootDescriptorTable(1, srvHandle);
 }

@@ -3,61 +3,60 @@
 ToolsController::ToolsController()
 {
     m_module = nullptr;
+
     m_showForm = nullptr;
     m_getRedData = nullptr;
     m_getGreenData = nullptr;
     m_getBlueData = nullptr;
 }
 
+ToolsController::~ToolsController()
+{
+    if (m_module != nullptr)
+    {
+        FreeLibrary(m_module);
+        m_module = nullptr;
+    }
+}
+
 void ToolsController::LoadToolsLibrary()
 {
+    if (m_module != nullptr)
+    {
+        return;
+    }
+
     m_module = LoadLibraryW(L"ToolsGUI.dll");
 
     M_ASSERT(
         m_module != nullptr,
         "Failed to load ToolsGUI.dll");
 
-    FARPROC address = GetProcAddress(
-        m_module,
-        "ShowToolsForm");
+    m_showForm = reinterpret_cast<ShowToolsForm>(
+        GetProcAddress(m_module, "ShowToolsForm"));
+
+    m_getRedData = reinterpret_cast<GetToolsBoolData>(
+        GetProcAddress(m_module, "GetToolsRedData"));
+
+    m_getGreenData = reinterpret_cast<GetToolsBoolData>(
+        GetProcAddress(m_module, "GetToolsGreenData"));
+
+    m_getBlueData = reinterpret_cast<GetToolsBoolData>(
+        GetProcAddress(m_module, "GetToolsBlueData"));
 
     M_ASSERT(
-        address != nullptr,
-        "Failed to find ShowToolsForm");
-
-    m_showForm =
-        reinterpret_cast<ShowToolsForm>(address);
-
-    address = GetProcAddress(
-        m_module,
-        "GetToolsRedData");
+        m_showForm != nullptr,
+        "Missing ShowToolsForm");
 
     M_ASSERT(
-        address != nullptr,
-        "Failed to find GetToolsRedData");
-
-    m_getRedData =
-        reinterpret_cast<GetToolsRedData>(address);
-
-    address = GetProcAddress(
-        m_module,
-        "GetToolsGreenData");
+        m_getRedData != nullptr,
+        "Missing GetToolsRedData");
 
     M_ASSERT(
-        address != nullptr,
-        "Failed to find GetToolsGreenData");
-
-    m_getGreenData =
-        reinterpret_cast<GetToolsGreenData>(address);
-
-    address = GetProcAddress(
-        m_module,
-        "GetToolsBlueData");
+        m_getGreenData != nullptr,
+        "Missing GetToolsGreenData");
 
     M_ASSERT(
-        address != nullptr,
-        "Failed to find GetToolsBlueData");
-
-    m_getBlueData =
-        reinterpret_cast<GetToolsBlueData>(address);
+        m_getBlueData != nullptr,
+        "Missing GetToolsBlueData");
 }

@@ -6,26 +6,33 @@ using namespace System::Windows::Forms;
 
 static ToolsForm^ GetOpenedToolsForm()
 {
-    if (Application::OpenForms->Count == 0)
+    for (int i = 0; i < Application::OpenForms->Count; ++i)
     {
-        return nullptr;
+        ToolsForm^ form =
+            dynamic_cast<ToolsForm^>(Application::OpenForms[i]);
+
+        if (form != nullptr)
+        {
+            return form;
+        }
     }
 
-    return dynamic_cast<ToolsForm^>(
-        Application::OpenForms[0]);
+    return nullptr;
 }
 
 extern "C" __declspec(dllexport)
 void __stdcall ShowToolsForm()
 {
-    Application::EnableVisualStyles();
+    ToolsForm^ form = GetOpenedToolsForm();
 
-    Application::SetCompatibleTextRenderingDefault(
-        false);
+    if (form == nullptr)
+    {
+        Application::EnableVisualStyles();
 
-    ToolsForm^ form = gcnew ToolsForm();
+        form = gcnew ToolsForm();
+        form->Show();
+    }
 
-    form->Show();
     form->BringToFront();
 }
 
@@ -34,12 +41,9 @@ bool __stdcall GetToolsRedData()
 {
     ToolsForm^ form = GetOpenedToolsForm();
 
-    if (form == nullptr)
-    {
-        return false;
-    }
-
-    return form->checkBoxRed->Checked;
+    return form != nullptr
+        ? form->checkBoxRed->Checked
+        : false;
 }
 
 extern "C" __declspec(dllexport)
@@ -47,12 +51,9 @@ bool __stdcall GetToolsGreenData()
 {
     ToolsForm^ form = GetOpenedToolsForm();
 
-    if (form == nullptr)
-    {
-        return false;
-    }
-
-    return form->checkBoxGreen->Checked;
+    return form != nullptr
+        ? form->checkBoxGreen->Checked
+        : true;
 }
 
 extern "C" __declspec(dllexport)
@@ -60,10 +61,7 @@ bool __stdcall GetToolsBlueData()
 {
     ToolsForm^ form = GetOpenedToolsForm();
 
-    if (form == nullptr)
-    {
-        return false;
-    }
-
-    return form->checkBoxBlue->Checked;
+    return form != nullptr
+        ? form->checkBoxBlue->Checked
+        : false;
 }

@@ -2,50 +2,42 @@
 
 #include "StandardIncludes.h"
 
-class ToolsController :
-    public Singleton<ToolsController>
+class ToolsController : public Singleton<ToolsController>
 {
 public:
-    // Constructors / Destructors
     ToolsController();
-    virtual ~ToolsController() {}
+    virtual ~ToolsController();
 
-    // Function pointer types
     typedef void(__stdcall* ShowToolsForm)();
-    typedef bool(__stdcall* GetToolsRedData)();
-    typedef bool(__stdcall* GetToolsGreenData)();
-    typedef bool(__stdcall* GetToolsBlueData)();
+    typedef bool(__stdcall* GetToolsBoolData)();
 
-    // Accessors
     void ShowForm() const
     {
         m_showForm();
     }
 
-    int GetRedData() const
+    bool GetRedData() const
     {
         return m_getRedData();
     }
 
-    int GetGreenData() const
+    bool GetGreenData() const
     {
         return m_getGreenData();
     }
 
-    int GetBlueData() const
+    bool GetBlueData() const
     {
         return m_getBlueData();
     }
 
-    // Methods
     void LoadToolsLibrary();
 
 private:
-    // Members
     HMODULE m_module;
 
     ShowToolsForm m_showForm;
-    GetToolsRedData m_getRedData;
-    GetToolsGreenData m_getGreenData;
-    GetToolsBlueData m_getBlueData;
+    GetToolsBoolData m_getRedData;
+    GetToolsBoolData m_getGreenData;
+    GetToolsBoolData m_getBlueData;
 };

@@ -1,6 +1,7 @@
 cbuffer SceneData : register(b0)
 {
     float4x4 WVP;
+    float4 yuvControls;
 };
 
 struct VSInput
@@ -14,12 +15,7 @@ struct PSInput
 {
     float4 position : SV_POSITION;
     float4 color : COLOR0;
-    float2 uv : TEXCOORD0;
 };
-
-Texture2D g_texture0 : register(t0);
-Texture2D g_texture1 : register(t1);
-SamplerState g_sampler : register(s0);
 
 PSInput VSMain(VSInput input)
 {
@@ -27,15 +23,39 @@ PSInput VSMain(VSInput input)
 
     result.position = mul(float4(input.position, 1.0f), WVP);
     result.color = input.color;
-    result.uv = input.uv;
 
     return result;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    float4 col0 = g_texture0.Sample(g_sampler, input.uv);
-    float4 col1 = g_texture1.Sample(g_sampler, input.uv);
+    float3 rgb = input.color.rgb;
 
-    return lerp(col0, col1, 0.3f) * input.color;
+    float Y = dot(rgb, float3(
+        0.299f, 0.587f, 0.114f));
+
+    float U = dot(rgb, float3(
+        -0.14713f, -0.28886f, 0.436f));
+
+    float V = dot(rgb, float3(
+        0.615f, -0.51499f, -0.10001f));
+
+    Y *= yuvControls.x;
+    U *= yuvControls.y;
+    V *= yuvControls.z;
+
+    float3 result;
+
+    result.r = Y + 1.13983f * V;
+    result.g = Y - 0.39465f * U - 0.58060f * V;
+    result.b = Y + 2.03211f * U;
+
+    result = saturate(result);
+
+    if (yuvControls.w > 0.5f)
+    {
+        result = 1.0f - result;
+    }
+
+    return float4(result, input.color.a);
 }

@@ -3,7 +3,7 @@
 #include "Renderer.h"
 #include "Camera.h"
 #include "ToolsController.h"
-#include "Shader.h"
+#include "ShaderPhong.h"
 #include "Unit.h"
 
 GameController::GameController()
@@ -21,12 +21,15 @@ GameController::~GameController()
 }
 
 void GameController::Initialize(
-    HINSTANCE _hInstance, int _nShowCmd)
+    HINSTANCE hInstance,
+    int nShowCmd)
 {
     m_windowC = &WindowController::GetInstance();
 
     m_windowC->Create(
-        _hInstance, _nShowCmd, WindowMode::WINDOWED);
+        hInstance,
+        nShowCmd,
+        WindowMode::WINDOWED);
 
     m_renderer = &Renderer::GetInstance();
 
@@ -48,35 +51,103 @@ void GameController::Run()
 {
     m_toolsC->ShowForm();
 
-    Shader shader;
-    shader.Initialize(L"shaders.hlsl");
+    ShaderPhong shader;
+    shader.Initialize();
 
     Unit unit;
     unit.Initialize(&shader);
 
-    MSG message = {};
+    unit.SetRotation(
+        XMFLOAT3(0.0f, XMConvertToRadians(45.0f), 0.0f));
 
-    while (message.message != WM_QUIT)
+    MSG message = {};
+    bool running = true;
+
+    while (running)
     {
-        if (PeekMessage(&message, nullptr, 0, 0, PM_REMOVE))
+        while (PeekMessage(
+            &message,
+            nullptr,
+            0,
+            0,
+            PM_REMOVE))
         {
+            if (message.message == WM_QUIT)
+            {
+                running = false;
+                break;
+            }
+
             TranslateMessage(&message);
             DispatchMessage(&message);
         }
-        else
+
+        if (!running)
         {
-            float* bgColor = m_renderer->GetBGColor();
-
-            bgColor[0] = m_toolsC->GetRedData() ? 1.0f : 0.0f;
-            bgColor[1] = m_toolsC->GetGreenData() ? 1.0f : 0.0f;
-            bgColor[2] = m_toolsC->GetBlueData() ? 1.0f : 0.0f;
-            bgColor[3] = 1.0f;
-
-            XMMATRIX viewProj =
-                m_camera->GetView() * m_camera->GetProjection();
-
-            m_renderer->Render(&unit, viewProj);
+            break;
         }
+
+        float* bgColor = m_renderer->GetBGColor();
+
+        bgColor[0] = m_toolsC->GetRedData() ? 1.0f : 0.0f;
+        bgColor[1] = m_toolsC->GetGreenData() ? 1.0f : 0.0f;
+        bgColor[2] = m_toolsC->GetBlueData() ? 1.0f : 0.0f;
+        bgColor[3] = 1.0f;
+
+        auto pos = unit.GetPosition();
+        auto rot = unit.GetRotation();
+        auto scl = unit.GetScale();
+
+        const bool* keys = m_windowC->GetKeyStates();
+
+        if (keys[VK_RIGHT])
+        {
+            pos.x += 0.01f;
+        }
+
+        if (keys[VK_LEFT])
+        {
+            pos.x -= 0.01f;
+        }
+
+        if (keys[VK_UP])
+        {
+            pos.y += 0.01f;
+        }
+
+        if (keys[VK_DOWN])
+        {
+            pos.y -= 0.01f;
+        }
+
+        if (keys['Q'])
+        {
+            rot.y += 0.1f;
+        }
+
+        if (keys['W'])
+        {
+            rot.y -= 0.1f;
+        }
+
+        if (keys['A'])
+        {
+            scl.x -= 0.1f;
+        }
+
+        if (keys['S'])
+        {
+            scl.x += 0.1f;
+        }
+
+        unit.SetPosition(pos);
+        unit.SetRotation(rot);
+        unit.SetScale(scl);
+
+        XMMATRIX viewProj =
+            m_camera->GetView() * m_camera->GetProjection();
+
+        m_renderer->Render(&unit, viewProj);
     }
 
     m_renderer->WaitForPreviousFrame();

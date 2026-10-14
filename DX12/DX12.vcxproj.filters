@@ -60,6 +60,12 @@
     <ClInclude Include="DDSLoad.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="VertexStructs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="ShaderPhong.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="WindowController.cpp">
@@ -98,11 +104,19 @@
     <ClCompile Include="DDSLoad.cpp">
       <Filter>Resource Files</Filter>
     </ClCompile>
+    <ClCompile Include="ShaderPhong.cpp">
+      <Filter>Resource Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="packages.config" />
     <None Include="shaders.hlsl">
       <Filter>Shaders</Filter>
     </None>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="phong.hlsl">
+      <Filter>Shaders</Filter>
+    </Text>
   </ItemGroup>
 </Project>

@@ -6,7 +6,7 @@ class Camera
 {
 public:
     Camera();
-    Camera(int _width, int _height);
+    Camera(int width, int height);
     virtual ~Camera();
 
     XMMATRIX GetProjection() const

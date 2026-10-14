@@ -8,7 +8,7 @@ public:
     GameController();
     virtual ~GameController();
 
-    void Initialize(HINSTANCE _hInstance, int _nShowCmd);
+    void Initialize(HINSTANCE hInstance, int nShowCmd);
     void Run();
 
 private:
