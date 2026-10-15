@@ -4,6 +4,53 @@
 ShaderPhong::ShaderPhong()
 {
     SetShaderFile(L"phong.hlsl");
+
+    m_diffuseColor = {};
+    m_ambientLight = {};
+    m_lightDirection = {};
+    m_lightColor = {};
+    m_isLightCube = false;
+
+    XMStoreFloat4x4(
+        &m_normalMatrix,
+        XMMatrixIdentity());
+}
+
+void ShaderPhong::SetDiffuseColor(XMFLOAT4 color)
+{
+    m_diffuseColor = color;
+}
+
+void ShaderPhong::SetAmbientLight(XMFLOAT4 color)
+{
+    m_ambientLight = color;
+}
+
+void ShaderPhong::SetLightDirection(XMFLOAT3 direction)
+{
+    m_lightDirection = direction;
+}
+
+void ShaderPhong::SetLightColor(XMFLOAT4 color)
+{
+    m_lightColor = color;
+}
+
+void ShaderPhong::SetIsLightCube(bool isLightCube)
+{
+    m_isLightCube = isLightCube;
+}
+
+void ShaderPhong::SetWorldMatrix(XMMATRIX world)
+{
+    XMMATRIX normalMatrix =
+        XMMatrixTranspose(
+            XMMatrixInverse(nullptr, world));
+
+    // Transpose for HLSL's default column-major storage.
+    XMStoreFloat4x4(
+        &m_normalMatrix,
+        XMMatrixTranspose(normalMatrix));
 }
 
 void ShaderPhong::CreatePipelineState()
@@ -34,24 +81,23 @@ void ShaderPhong::SetPipelineState()
     auto renderer = &Renderer::GetInstance();
 
     unsigned char* base =
-        reinterpret_cast<unsigned char*>(GetConstantData());
+        reinterpret_cast<unsigned char*>(
+            GetConstantData());
 
-    CB_Phong* constantData =
+    CB_Phong* data =
         reinterpret_cast<CB_Phong*>(
             base +
-            renderer->GetFrameIndex() * GetConstantBufferSize());
+            renderer->GetFrameIndex() *
+            GetConstantBufferSize());
 
-    constantData->DiffuseColor =
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+    data->NormalMatrix = m_normalMatrix;
 
-    constantData->AmbientLight =
-        XMFLOAT4(0.2f, 0.2f, 0.2f, 1.0f);
+    data->DiffuseColor = m_diffuseColor;
+    data->AmbientLight = m_ambientLight;
+    data->LightDirection = m_lightDirection;
+    data->LightColor = m_lightColor;
 
-    constantData->LightDirection =
-        XMFLOAT3(1.0f, -0.5f, 1.0f);
-
-    constantData->pad0 = 0.0f;
-
-    constantData->LightColor =
-        XMFLOAT4(0.5f, 0.0f, 0.5f, 1.0f);
+    data->pad0 = 0.0f;
+    data->IsLightCube = m_isLightCube ? 1U : 0U;
+    data->pad1 = XMFLOAT3(0.0f, 0.0f, 0.0f);
 }
