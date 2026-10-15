@@ -1,66 +1,94 @@
 #include "ShaderPhong.h"
 #include "Renderer.h"
 
+#include <algorithm>
+
 ShaderPhong::ShaderPhong()
 {
     SetShaderFile(L"phong.hlsl");
 
-    m_diffuseColor = {};
-    m_ambientLight = {};
-    m_lightDirection = {};
-    m_lightColor = {};
-    m_isLightCube = false;
+    m_parameters = {};
 
     XMStoreFloat4x4(
-        &m_normalMatrix,
+        &m_parameters.World,
+        XMMatrixIdentity());
+
+    XMStoreFloat4x4(
+        &m_parameters.NormalMatrix,
         XMMatrixIdentity());
 }
 
-void ShaderPhong::SetDiffuseColor(XMFLOAT4 color)
+void ShaderPhong::SetDiffuseColor(XMFLOAT4 value)
 {
-    m_diffuseColor = color;
+    m_parameters.DiffuseColor = value;
 }
 
-void ShaderPhong::SetAmbientLight(XMFLOAT4 color)
+void ShaderPhong::SetAmbientLight(XMFLOAT4 value)
 {
-    m_ambientLight = color;
+    m_parameters.AmbientLight = value;
 }
 
-void ShaderPhong::SetLightDirection(XMFLOAT3 direction)
+void ShaderPhong::SetLightPosition(XMFLOAT3 value)
 {
-    m_lightDirection = direction;
+    m_parameters.LightPosition = value;
 }
 
-void ShaderPhong::SetLightColor(XMFLOAT4 color)
+void ShaderPhong::SetLightColor(XMFLOAT4 value)
 {
-    m_lightColor = color;
+    m_parameters.LightColor = value;
 }
 
-void ShaderPhong::SetIsLightCube(bool isLightCube)
+void ShaderPhong::SetSpecularPower(float value)
 {
-    m_isLightCube = isLightCube;
+    m_parameters.SpecularPower =
+        std::max(value, 1.0f);
+}
+
+void ShaderPhong::SetSpecularStrength(float value)
+{
+    m_parameters.SpecularStrength =
+        std::max(value, 0.0f);
+}
+
+void ShaderPhong::SetSpecularColor(XMFLOAT4 value)
+{
+    m_parameters.SpecularColor = value;
+}
+
+void ShaderPhong::SetCameraPosition(XMFLOAT4 value)
+{
+    m_parameters.CameraPosition = value;
+}
+
+void ShaderPhong::SetIsLightCube(bool value)
+{
+    m_parameters.IsLightCube = value ? 1U : 0U;
 }
 
 void ShaderPhong::SetWorldMatrix(XMMATRIX world)
 {
+    XMStoreFloat4x4(
+        &m_parameters.World,
+        XMMatrixTranspose(world));
+
     XMMATRIX normalMatrix =
         XMMatrixTranspose(
             XMMatrixInverse(nullptr, world));
 
-    // Transpose for HLSL's default column-major storage.
     XMStoreFloat4x4(
-        &m_normalMatrix,
+        &m_parameters.NormalMatrix,
         XMMatrixTranspose(normalMatrix));
 }
 
 void ShaderPhong::CreatePipelineState()
 {
-    VTX_PosNormTex vtx;
+    VTX_PosNormTex vertexLayout;
 
-    SetInputElementDescs(vtx.InputElementDescs);
+    SetInputElementDescs(
+        vertexLayout.InputElementDescs);
 
     SetInputElementDescsSize(
-        _countof(vtx.InputElementDescs));
+        _countof(vertexLayout.InputElementDescs));
 
     SetConstantBufferSize(sizeof(CB_Phong));
 
@@ -87,17 +115,25 @@ void ShaderPhong::SetPipelineState()
     CB_Phong* data =
         reinterpret_cast<CB_Phong*>(
             base +
-            renderer->GetFrameIndex() *
-            GetConstantBufferSize());
+            renderer->GetFrameIndex()
+            * GetConstantBufferSize());
 
-    data->NormalMatrix = m_normalMatrix;
+    // Mesh::Render writes WVP after this method.
+    data->World = m_parameters.World;
+    data->NormalMatrix = m_parameters.NormalMatrix;
 
-    data->DiffuseColor = m_diffuseColor;
-    data->AmbientLight = m_ambientLight;
-    data->LightDirection = m_lightDirection;
-    data->LightColor = m_lightColor;
+    data->DiffuseColor = m_parameters.DiffuseColor;
+    data->AmbientLight = m_parameters.AmbientLight;
+    data->LightPosition = m_parameters.LightPosition;
+    data->LightColor = m_parameters.LightColor;
+
+    data->SpecularPower = m_parameters.SpecularPower;
+    data->SpecularStrength = m_parameters.SpecularStrength;
+    data->SpecularColor = m_parameters.SpecularColor;
+    data->CameraPosition = m_parameters.CameraPosition;
+
+    data->IsLightCube = m_parameters.IsLightCube;
 
     data->pad0 = 0.0f;
-    data->IsLightCube = m_isLightCube ? 1U : 0U;
-    data->pad1 = XMFLOAT3(0.0f, 0.0f, 0.0f);
+    data->pad1 = 0.0f;
 }

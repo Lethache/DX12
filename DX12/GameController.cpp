@@ -11,27 +11,26 @@
 #include <cmath>
 #include <cstdio>
 
-// Both objects are drawn during one Renderer::Render call.
 class LightingScene : public IRenderable
 {
 public:
-    LightingScene(Unit& texturedCube, Unit& lightCube)
-        : m_texturedCube(texturedCube),
-        m_lightCube(lightCube)
+    LightingScene(Unit& cube, Unit& light)
+        : m_cube(cube), m_light(light)
     {
-        SetShader(texturedCube.GetShader());
+        SetShader(cube.GetShader());
     }
 
     void Render(XMMATRIX viewProj) override
     {
-        m_texturedCube.Render(viewProj);
-        m_lightCube.Render(viewProj);
+        m_cube.Render(viewProj);
+        m_light.Render(viewProj);
     }
 
 private:
-    Unit& m_texturedCube;
-    Unit& m_lightCube;
+    Unit& m_cube;
+    Unit& m_light;
 };
+
 GameController::GameController()
 {
     m_windowC = nullptr;
@@ -77,7 +76,6 @@ void GameController::Run()
 {
     m_toolsC->ShowForm();
 
-    // Each object has its own shader resources and constant buffer.
     ShaderPhong cubeShader;
     cubeShader.Initialize();
 
@@ -88,43 +86,34 @@ void GameController::Run()
     cube.Initialize(&cubeShader);
     cube.SetScale(XMFLOAT3(0.8f, 0.8f, 0.8f));
 
-    Unit lightCube;
-    lightCube.Initialize(&lightShader);
-    lightCube.SetScale(XMFLOAT3(0.15f, 0.15f, 0.15f));
+    Unit light;
+    light.Initialize(&lightShader);
+    light.SetScale(XMFLOAT3(0.15f, 0.15f, 0.15f));
 
-    LightingScene scene(cube, lightCube);
+    LightingScene scene(cube, light);
 
-    // Initial shader parameters are supplied by the application.
     XMFLOAT4 diffuseColor(1.0f, 1.0f, 1.0f, 1.0f);
-    XMFLOAT4 ambientLight(0.2f, 0.2f, 0.2f, 1.0f);
+    XMFLOAT4 ambientLight(0.15f, 0.15f, 0.15f, 1.0f);
     XMFLOAT4 lightColor(1.0f, 1.0f, 1.0f, 1.0f);
 
-    XMFLOAT3 lightPosition(-1.0f, 0.8f, -0.8f);
-
-    // White marker is rendered without texture or lighting.
-    lightShader.SetIsLightCube(true);
-    lightShader.SetDiffuseColor(
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    XMFLOAT3 lightPosition(-0.8f, 0.8f, -1.0f);
 
     cubeShader.SetIsLightCube(false);
 
-    int editMode = 1;
+    cubeShader.SetSpecularColor(
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    lightShader.SetIsLightCube(true);
+
+    lightShader.SetDiffuseColor(
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    int editMode = 4;
     bool rotating = true;
     bool previousSpace = false;
 
     using Clock = std::chrono::steady_clock;
     auto previousTime = Clock::now();
-
-    std::printf(
-        "1: Object color\n"
-        "2: Ambient light\n"
-        "3: Light color\n"
-        "4: Light position / direction\n"
-        "Left/Right: R or X\n"
-        "Down/Up: G or Y\n"
-        "PageDown/PageUp: B or Z\n"
-        "Space: Pause/resume rotation\n"
-        "Escape: Exit\n");
 
     MSG message = {};
     bool running = true;
@@ -132,11 +121,7 @@ void GameController::Run()
     while (running)
     {
         while (PeekMessage(
-            &message,
-            nullptr,
-            0,
-            0,
-            PM_REMOVE))
+            &message, nullptr, 0, 0, PM_REMOVE))
         {
             if (message.message == WM_QUIT)
             {
@@ -162,89 +147,85 @@ void GameController::Run()
         previousTime = currentTime;
         deltaTime = std::min(deltaTime, 0.05f);
 
-        const bool* keys = m_windowC->GetKeyStates();
+        // Poll the renderer window's controls directly.
+        // This also supports the numeric keypad.
+        bool active =
+            GetForegroundWindow() == m_windowC->GetHWND();
 
-        if (keys['1']) editMode = 1;
-        if (keys['2']) editMode = 2;
-        if (keys['3']) editMode = 3;
-        if (keys['4']) editMode = 4;
+        auto pressed = [active](int key) -> bool
+            {
+                return active &&
+                    (GetAsyncKeyState(key) & 0x8000) != 0;
+            };
 
-        bool spacePressed = keys[VK_SPACE];
+        if (pressed(VK_ESCAPE))
+        {
+            running = false;
+            continue;
+        }
 
-        if (spacePressed && !previousSpace)
+        if (pressed('1') || pressed(VK_NUMPAD1))
+            editMode = 1;
+
+        if (pressed('2') || pressed(VK_NUMPAD2))
+            editMode = 2;
+
+        if (pressed('3') || pressed(VK_NUMPAD3))
+            editMode = 3;
+
+        if (pressed('4') || pressed(VK_NUMPAD4))
+            editMode = 4;
+
+        bool space = pressed(VK_SPACE);
+
+        if (space && !previousSpace)
         {
             rotating = !rotating;
         }
 
-        previousSpace = spacePressed;
+        previousSpace = space;
 
-        float changeX =
-            (static_cast<float>(keys[VK_RIGHT]) -
-                static_cast<float>(keys[VK_LEFT])) * deltaTime;
+        float x =
+            (static_cast<float>(pressed(VK_RIGHT)) -
+                static_cast<float>(pressed(VK_LEFT))) * deltaTime;
 
-        float changeY =
-            (static_cast<float>(keys[VK_UP]) -
-                static_cast<float>(keys[VK_DOWN])) * deltaTime;
+        float y =
+            (static_cast<float>(pressed(VK_UP)) -
+                static_cast<float>(pressed(VK_DOWN))) * deltaTime;
 
-        float changeZ =
-            (static_cast<float>(keys[VK_PRIOR]) -
-                static_cast<float>(keys[VK_NEXT])) * deltaTime;
+        float z =
+            (static_cast<float>(pressed(VK_PRIOR)) -
+                static_cast<float>(pressed(VK_NEXT))) * deltaTime;
 
         if (editMode == 4)
         {
-            XMFLOAT3 nextPosition = lightPosition;
+            lightPosition.x = std::clamp(
+                lightPosition.x + x, -1.2f, 1.2f);
 
-            nextPosition.x += changeX;
-            nextPosition.y += changeY;
-            nextPosition.z += changeZ;
+            lightPosition.y = std::clamp(
+                lightPosition.y + y, -1.0f, 1.2f);
 
-            nextPosition.x =
-                std::clamp(nextPosition.x, -1.2f, 1.2f);
-
-            nextPosition.y =
-                std::clamp(nextPosition.y, -1.0f, 1.2f);
-
-            nextPosition.z =
-                std::clamp(nextPosition.z, -1.0f, 1.0f);
-
-            float lengthSquared =
-                nextPosition.x * nextPosition.x +
-                nextPosition.y * nextPosition.y +
-                nextPosition.z * nextPosition.z;
-
-            // Keep a valid, nonzero direction.
-            if (lengthSquared > 0.04f)
-            {
-                lightPosition = nextPosition;
-            }
+            lightPosition.z = std::clamp(
+                lightPosition.z + z, -1.5f, 1.0f);
         }
         else
         {
-            XMFLOAT4* selectedColor = &diffuseColor;
+            XMFLOAT4* color = &diffuseColor;
 
             if (editMode == 2)
-            {
-                selectedColor = &ambientLight;
-            }
-            else if (editMode == 3)
-            {
-                selectedColor = &lightColor;
-            }
+                color = &ambientLight;
 
-            selectedColor->x = std::clamp(
-                selectedColor->x + changeX,
-                0.0f,
-                1.0f);
+            if (editMode == 3)
+                color = &lightColor;
 
-            selectedColor->y = std::clamp(
-                selectedColor->y + changeY,
-                0.0f,
-                1.0f);
+            color->x = std::clamp(
+                color->x + x, 0.0f, 1.0f);
 
-            selectedColor->z = std::clamp(
-                selectedColor->z + changeZ,
-                0.0f,
-                1.0f);
+            color->y = std::clamp(
+                color->y + y, 0.0f, 1.0f);
+
+            color->z = std::clamp(
+                color->z + z, 0.0f, 1.0f);
         }
 
         if (rotating)
@@ -252,62 +233,80 @@ void GameController::Run()
             XMFLOAT3 rotation = cube.GetRotation();
 
             rotation.y = std::fmod(
-                rotation.y + deltaTime * 0.7f,
+                rotation.y + deltaTime * 0.6f,
                 XM_2PI);
 
             cube.SetRotation(rotation);
         }
 
-        lightCube.SetPosition(lightPosition);
+        light.SetPosition(lightPosition);
 
-        // Directional light points from the marker toward the origin.
-        cubeShader.SetLightDirection(
-            XMFLOAT3(
-                -lightPosition.x,
-                -lightPosition.y,
-                -lightPosition.z));
+        // Recover camera position from the actual view matrix.
+        XMMATRIX inverseView =
+            XMMatrixInverse(nullptr, m_camera->GetView());
+
+        XMFLOAT4 cameraPosition;
+
+        XMStoreFloat4(
+            &cameraPosition,
+            inverseView.r[3]);
+
+        cubeShader.SetCameraPosition(cameraPosition);
+        cubeShader.SetLightPosition(lightPosition);
 
         cubeShader.SetDiffuseColor(diffuseColor);
         cubeShader.SetAmbientLight(ambientLight);
         cubeShader.SetLightColor(lightColor);
 
-        float* bgColor = m_renderer->GetBGColor();
+        // Read the sliders every frame.
+        cubeShader.SetSpecularPower(
+            m_toolsC->GetSpecularPower());
 
-        bgColor[0] = m_toolsC->GetRedData() ? 1.0f : 0.0f;
-        bgColor[1] = m_toolsC->GetGreenData() ? 1.0f : 0.0f;
-        bgColor[2] = m_toolsC->GetBlueData() ? 1.0f : 0.0f;
-        bgColor[3] = 1.0f;
+        cubeShader.SetSpecularStrength(
+            m_toolsC->GetSpecularStrength());
 
-        const wchar_t* modeName = L"Object color";
+        float* background = m_renderer->GetBGColor();
 
-        XMFLOAT3 displayedValues(
+        background[0] =
+            m_toolsC->GetRedData() ? 1.0f : 0.0f;
+
+        background[1] =
+            m_toolsC->GetGreenData() ? 1.0f : 0.0f;
+
+        background[2] =
+            m_toolsC->GetBlueData() ? 1.0f : 0.0f;
+
+        background[3] = 1.0f;
+
+        const wchar_t* mode = L"Object color";
+
+        XMFLOAT3 values(
             diffuseColor.x,
             diffuseColor.y,
             diffuseColor.z);
 
         if (editMode == 2)
         {
-            modeName = L"Ambient light";
+            mode = L"Ambient";
 
-            displayedValues = XMFLOAT3(
+            values = XMFLOAT3(
                 ambientLight.x,
                 ambientLight.y,
                 ambientLight.z);
         }
         else if (editMode == 3)
         {
-            modeName = L"Light color";
+            mode = L"Light color";
 
-            displayedValues = XMFLOAT3(
+            values = XMFLOAT3(
                 lightColor.x,
                 lightColor.y,
                 lightColor.z);
         }
         else if (editMode == 4)
         {
-            modeName = L"Light position";
-
-            displayedValues = lightPosition;
+            mode = L"Light position";
+            values = lightPosition;
         }
 
         wchar_t title[256] = {};
@@ -315,12 +314,13 @@ void GameController::Run()
         swprintf_s(
             title,
             _countof(title),
-            L"Task 1 | %ls: %.2f, %.2f, %.2f | "
-            L"1-4 select | Arrows + PgUp/PgDn | Space pause",
-            modeName,
-            displayedValues.x,
-            displayedValues.y,
-            displayedValues.z);
+            L"Task 2 | %ls: %.2f %.2f %.2f | "
+            L"Power %.0f | 1-4 select | Space pause",
+            mode,
+            values.x,
+            values.y,
+            values.z,
+            m_toolsC->GetSpecularPower());
 
         SetWindowTextW(m_windowC->GetHWND(), title);
 

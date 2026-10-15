@@ -5,9 +5,13 @@ ToolsController::ToolsController()
     m_module = nullptr;
 
     m_showForm = nullptr;
+
     m_getRedData = nullptr;
     m_getGreenData = nullptr;
     m_getBlueData = nullptr;
+
+    m_getSpecularPower = nullptr;
+    m_getSpecularStrength = nullptr;
 }
 
 ToolsController::~ToolsController()
@@ -44,9 +48,19 @@ void ToolsController::LoadToolsLibrary()
     m_getBlueData = reinterpret_cast<GetToolsBoolData>(
         GetProcAddress(m_module, "GetToolsBlueData"));
 
-    M_ASSERT(
-        m_showForm != nullptr,
-        "Missing ShowToolsForm");
+    m_getSpecularPower =
+        reinterpret_cast<GetToolsFloatData>(
+            GetProcAddress(
+                m_module,
+                "GetToolsSpecularPower"));
+
+    m_getSpecularStrength =
+        reinterpret_cast<GetToolsFloatData>(
+            GetProcAddress(
+                m_module,
+                "GetToolsSpecularStrength"));
+
+    M_ASSERT(m_showForm != nullptr, "Missing ShowToolsForm");
 
     M_ASSERT(
         m_getRedData != nullptr,
@@ -59,4 +73,12 @@ void ToolsController::LoadToolsLibrary()
     M_ASSERT(
         m_getBlueData != nullptr,
         "Missing GetToolsBlueData");
+
+    M_ASSERT(
+        m_getSpecularPower != nullptr,
+        "Missing GetToolsSpecularPower. Update ToolsGUI.dll.");
+
+    M_ASSERT(
+        m_getSpecularStrength != nullptr,
+        "Missing GetToolsSpecularStrength. Update ToolsGUI.dll.");
 }

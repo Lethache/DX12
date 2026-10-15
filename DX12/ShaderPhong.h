@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Shader.h"
+#include <cstddef>
 
 class ShaderPhong : public Shader
 {
@@ -10,25 +11,37 @@ public:
     struct alignas(256) CB_Phong
     {
         XMFLOAT4X4 WVP;
+        XMFLOAT4X4 World;
         XMFLOAT4X4 NormalMatrix;
 
         XMFLOAT4 DiffuseColor;
         XMFLOAT4 AmbientLight;
 
-        XMFLOAT3 LightDirection;
+        XMFLOAT3 LightPosition;
         float pad0;
 
         XMFLOAT4 LightColor;
 
+        float SpecularPower;
+        float SpecularStrength;
         UINT IsLightCube;
-        XMFLOAT3 pad1;
+        float pad1;
+
+        XMFLOAT4 SpecularColor;
+        XMFLOAT4 CameraPosition;
     };
 
-    void SetDiffuseColor(XMFLOAT4 color);
-    void SetAmbientLight(XMFLOAT4 color);
-    void SetLightDirection(XMFLOAT3 direction);
-    void SetLightColor(XMFLOAT4 color);
-    void SetIsLightCube(bool isLightCube);
+    void SetDiffuseColor(XMFLOAT4 value);
+    void SetAmbientLight(XMFLOAT4 value);
+    void SetLightPosition(XMFLOAT3 value);
+    void SetLightColor(XMFLOAT4 value);
+
+    void SetSpecularPower(float value);
+    void SetSpecularStrength(float value);
+    void SetSpecularColor(XMFLOAT4 value);
+    void SetCameraPosition(XMFLOAT4 value);
+
+    void SetIsLightCube(bool value);
     void SetWorldMatrix(XMMATRIX world);
 
     void SetPipelineState() override;
@@ -38,11 +51,21 @@ protected:
     void CreateConstantBuffer(UINT64 bufferSize) override;
 
 private:
-    XMFLOAT4 m_diffuseColor;
-    XMFLOAT4 m_ambientLight;
-    XMFLOAT3 m_lightDirection;
-    XMFLOAT4 m_lightColor;
-
-    XMFLOAT4X4 m_normalMatrix;
-    bool m_isLightCube;
+    CB_Phong m_parameters;
 };
+
+static_assert(
+    sizeof(ShaderPhong::CB_Phong) == 512,
+    "CB_Phong must use a 512-byte frame stride.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, DiffuseColor) == 192,
+    "DiffuseColor offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, SpecularPower) == 256,
+    "SpecularPower offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 288,
+    "CameraPosition offset must match HLSL.");

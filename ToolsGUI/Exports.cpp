@@ -4,12 +4,30 @@ using namespace ToolsGUI;
 using namespace System;
 using namespace System::Windows::Forms;
 
-static ToolsForm^ GetOpenedToolsForm()
+static ToolsForm^ FindBackgroundForm()
 {
     for (int i = 0; i < Application::OpenForms->Count; ++i)
     {
         ToolsForm^ form =
-            dynamic_cast<ToolsForm^>(Application::OpenForms[i]);
+            dynamic_cast<ToolsForm^>(
+                Application::OpenForms[i]);
+
+        if (form != nullptr)
+        {
+            return form;
+        }
+    }
+
+    return nullptr;
+}
+
+static LightingForm^ FindLightingForm()
+{
+    for (int i = 0; i < Application::OpenForms->Count; ++i)
+    {
+        LightingForm^ form =
+            dynamic_cast<LightingForm^>(
+                Application::OpenForms[i]);
 
         if (form != nullptr)
         {
@@ -23,23 +41,31 @@ static ToolsForm^ GetOpenedToolsForm()
 extern "C" __declspec(dllexport)
 void __stdcall ShowToolsForm()
 {
-    ToolsForm^ form = GetOpenedToolsForm();
+    ToolsForm^ background = FindBackgroundForm();
+    LightingForm^ lighting = FindLightingForm();
 
-    if (form == nullptr)
+    if (background == nullptr && lighting == nullptr)
     {
         Application::EnableVisualStyles();
-
-        form = gcnew ToolsForm();
-        form->Show();
     }
 
-    form->BringToFront();
+    if (background == nullptr)
+    {
+        background = gcnew ToolsForm();
+        background->Show();
+    }
+
+    if (lighting == nullptr)
+    {
+        lighting = gcnew LightingForm();
+        lighting->Show();
+    }
 }
 
 extern "C" __declspec(dllexport)
 bool __stdcall GetToolsRedData()
 {
-    ToolsForm^ form = GetOpenedToolsForm();
+    ToolsForm^ form = FindBackgroundForm();
 
     return form != nullptr
         ? form->checkBoxRed->Checked
@@ -49,19 +75,40 @@ bool __stdcall GetToolsRedData()
 extern "C" __declspec(dllexport)
 bool __stdcall GetToolsGreenData()
 {
-    ToolsForm^ form = GetOpenedToolsForm();
+    ToolsForm^ form = FindBackgroundForm();
 
     return form != nullptr
         ? form->checkBoxGreen->Checked
-        : true;
+        : false;
 }
 
 extern "C" __declspec(dllexport)
 bool __stdcall GetToolsBlueData()
 {
-    ToolsForm^ form = GetOpenedToolsForm();
+    ToolsForm^ form = FindBackgroundForm();
 
     return form != nullptr
         ? form->checkBoxBlue->Checked
         : false;
+}
+
+extern "C" __declspec(dllexport)
+float __stdcall GetToolsSpecularPower()
+{
+    LightingForm^ form = FindLightingForm();
+
+    return form != nullptr
+        ? static_cast<float>(form->trackBarPower->Value)
+        : 32.0f;
+}
+
+extern "C" __declspec(dllexport)
+float __stdcall GetToolsSpecularStrength()
+{
+    LightingForm^ form = FindLightingForm();
+
+    return form != nullptr
+        ? static_cast<float>(
+            form->trackBarStrength->Value) / 100.0f
+        : 0.8f;
 }
