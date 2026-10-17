@@ -16,6 +16,21 @@ ShaderPhong::ShaderPhong()
     XMStoreFloat4x4(
         &m_parameters.NormalMatrix,
         XMMatrixIdentity());
+
+    m_parameters.DiffuseColor =
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    m_parameters.AmbientLight =
+        XMFLOAT4(0.15f, 0.15f, 0.15f, 1.0f);
+
+    m_parameters.LightColor =
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    m_parameters.SpecularColor =
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f);
+
+    m_parameters.SpecularPower = 32.0f;
+    m_parameters.SpecularStrength = 0.8f;
 }
 
 void ShaderPhong::SetDiffuseColor(XMFLOAT4 value)
@@ -63,6 +78,11 @@ void ShaderPhong::SetCameraPosition(XMFLOAT4 value)
 void ShaderPhong::SetIsLightCube(bool value)
 {
     m_parameters.IsLightCube = value ? 1U : 0U;
+}
+
+void ShaderPhong::SetColorByPosition(bool value)
+{
+    m_parameters.ColorByPosition = value ? 1U : 0U;
 }
 
 void ShaderPhong::SetWorldMatrix(XMMATRIX world)
@@ -118,22 +138,24 @@ void ShaderPhong::SetPipelineState()
             renderer->GetFrameIndex()
             * GetConstantBufferSize());
 
-    // Mesh::Render writes WVP after this method.
+    // WVP is written by Mesh::Render after this method.
     data->World = m_parameters.World;
     data->NormalMatrix = m_parameters.NormalMatrix;
 
     data->DiffuseColor = m_parameters.DiffuseColor;
     data->AmbientLight = m_parameters.AmbientLight;
+
     data->LightPosition = m_parameters.LightPosition;
+    data->pad0 = 0.0f;
+
     data->LightColor = m_parameters.LightColor;
 
     data->SpecularPower = m_parameters.SpecularPower;
     data->SpecularStrength = m_parameters.SpecularStrength;
-    data->SpecularColor = m_parameters.SpecularColor;
-    data->CameraPosition = m_parameters.CameraPosition;
 
     data->IsLightCube = m_parameters.IsLightCube;
+    data->ColorByPosition = m_parameters.ColorByPosition;
 
-    data->pad0 = 0.0f;
-    data->pad1 = 0.0f;
+    data->SpecularColor = m_parameters.SpecularColor;
+    data->CameraPosition = m_parameters.CameraPosition;
 }

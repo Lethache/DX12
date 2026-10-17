@@ -25,7 +25,7 @@ public:
         float SpecularPower;
         float SpecularStrength;
         UINT IsLightCube;
-        float pad1;
+        UINT ColorByPosition;
 
         XMFLOAT4 SpecularColor;
         XMFLOAT4 CameraPosition;
@@ -42,6 +42,8 @@ public:
     void SetCameraPosition(XMFLOAT4 value);
 
     void SetIsLightCube(bool value);
+    void SetColorByPosition(bool value);
+
     void SetWorldMatrix(XMMATRIX world);
 
     void SetPipelineState() override;
@@ -65,6 +67,10 @@ static_assert(
 static_assert(
     offsetof(ShaderPhong::CB_Phong, SpecularPower) == 256,
     "SpecularPower offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, ColorByPosition) == 268,
+    "ColorByPosition offset must match HLSL.");
 
 static_assert(
     offsetof(ShaderPhong::CB_Phong, CameraPosition) == 288,

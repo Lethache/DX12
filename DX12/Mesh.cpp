@@ -18,21 +18,26 @@ Mesh::~Mesh()
     SetTexture1(nullptr);
 }
 
-void Mesh::Initialize(Shader* shader)
+void Mesh::Initialize(
+    Shader* shader,
+    const wchar_t* texturePath,
+    const wchar_t* secondTexturePath)
 {
     SetShader(shader);
     CreateVertexBuffer();
 
     Texture* texture0 = new Texture();
+
     texture0->Initialize(
-        L"..\\Assets\\Textures\\Wood.dds",
+        texturePath,
         shader);
 
     SetTexDiffuse(texture0);
 
     Texture* texture1 = new Texture();
+
     texture1->Initialize(
-        L"..\\Assets\\Textures\\Emoji.dds",
+        secondTexturePath,
         shader);
 
     SetTexture1(texture1);

@@ -1,10 +1,9 @@
 #include "ToolsForm.h"
 
 using namespace ToolsGUI;
-using namespace System;
 using namespace System::Windows::Forms;
 
-static ToolsForm^ FindBackgroundForm()
+static ToolsForm^ FindForm()
 {
     for (int i = 0; i < Application::OpenForms->Count; ++i)
     {
@@ -21,94 +20,135 @@ static ToolsForm^ FindBackgroundForm()
     return nullptr;
 }
 
-static LightingForm^ FindLightingForm()
-{
-    for (int i = 0; i < Application::OpenForms->Count; ++i)
-    {
-        LightingForm^ form =
-            dynamic_cast<LightingForm^>(
-                Application::OpenForms[i]);
-
-        if (form != nullptr)
-        {
-            return form;
-        }
-    }
-
-    return nullptr;
-}
-
 extern "C" __declspec(dllexport)
 void __stdcall ShowToolsForm()
 {
-    ToolsForm^ background = FindBackgroundForm();
-    LightingForm^ lighting = FindLightingForm();
-
-    if (background == nullptr && lighting == nullptr)
+    if (FindForm() == nullptr)
     {
         Application::EnableVisualStyles();
-    }
 
-    if (background == nullptr)
+        ToolsForm^ form = gcnew ToolsForm();
+        form->Show();
+    }
+}
+
+extern "C" __declspec(dllexport)
+void __stdcall CloseToolsForm()
+{
+    ToolsForm^ form = FindForm();
+
+    if (form != nullptr)
     {
-        background = gcnew ToolsForm();
-        background->Show();
+        form->Close();
+        delete form;
     }
+}
 
-    if (lighting == nullptr)
+extern "C" __declspec(dllexport)
+int __stdcall GetToolsMode()
+{
+    ToolsForm^ form = FindForm();
+
+    if (form == nullptr)
     {
-        lighting = gcnew LightingForm();
-        lighting->Show();
+        return 0;
     }
+
+    if (form->colorByPosition->Checked)
+    {
+        return 1;
+    }
+
+    if (form->moveToCube->Checked)
+    {
+        return 2;
+    }
+
+    return 0;
 }
 
 extern "C" __declspec(dllexport)
-bool __stdcall GetToolsRedData()
+bool __stdcall ConsumeResetLight()
 {
-    ToolsForm^ form = FindBackgroundForm();
+    ToolsForm^ form = FindForm();
 
-    return form != nullptr
-        ? form->checkBoxRed->Checked
-        : false;
+    if (form == nullptr)
+    {
+        return false;
+    }
+
+    bool result = form->resetLight;
+
+    form->resetLight = false;
+
+    return result;
 }
 
 extern "C" __declspec(dllexport)
-bool __stdcall GetToolsGreenData()
+bool __stdcall ConsumeResetCube()
 {
-    ToolsForm^ form = FindBackgroundForm();
+    ToolsForm^ form = FindForm();
 
-    return form != nullptr
-        ? form->checkBoxGreen->Checked
-        : false;
-}
+    if (form == nullptr)
+    {
+        return false;
+    }
 
-extern "C" __declspec(dllexport)
-bool __stdcall GetToolsBlueData()
-{
-    ToolsForm^ form = FindBackgroundForm();
+    bool result = form->resetCube;
 
-    return form != nullptr
-        ? form->checkBoxBlue->Checked
-        : false;
-}
+    form->resetCube = false;
 
-extern "C" __declspec(dllexport)
-float __stdcall GetToolsSpecularPower()
-{
-    LightingForm^ form = FindLightingForm();
-
-    return form != nullptr
-        ? static_cast<float>(form->trackBarPower->Value)
-        : 32.0f;
+    return result;
 }
 
 extern "C" __declspec(dllexport)
 float __stdcall GetToolsSpecularStrength()
 {
-    LightingForm^ form = FindLightingForm();
+    ToolsForm^ form = FindForm();
 
-    return form != nullptr
-        ? static_cast<float>(
-            form->trackBarStrength->Value) / 100.0f
-        : 0.8f;
+    if (form == nullptr)
+    {
+        return 0.8f;
+    }
+
+    return form->strength->Value / 100.0f;
+}
+
+extern "C" __declspec(dllexport)
+float __stdcall GetToolsSpecularRed()
+{
+    ToolsForm^ form = FindForm();
+
+    if (form == nullptr)
+    {
+        return 1.0f;
+    }
+
+    return form->red->Value / 100.0f;
+}
+
+extern "C" __declspec(dllexport)
+float __stdcall GetToolsSpecularGreen()
+{
+    ToolsForm^ form = FindForm();
+
+    if (form == nullptr)
+    {
+        return 1.0f;
+    }
+
+    return form->green->Value / 100.0f;
+}
+
+extern "C" __declspec(dllexport)
+float __stdcall GetToolsSpecularBlue()
+{
+    ToolsForm^ form = FindForm();
+
+    if (form == nullptr)
+    {
+        return 1.0f;
+    }
+
+    return form->blue->Value / 100.0f;
 }

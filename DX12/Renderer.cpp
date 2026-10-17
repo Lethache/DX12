@@ -8,13 +8,15 @@ Renderer::Renderer()
     m_commands = nullptr;
     m_viewport = {};
     m_scissorRect = {};
+
     m_frameIndex = 0;
     m_rtvDescriptorSize = 0;
     m_fenceValue = 0;
+
     m_fenceEvent = nullptr;
     m_initialized = false;
 
-    m_bgColor[0] = 1.0f;
+    m_bgColor[0] = 0.0f;
     m_bgColor[1] = 0.0f;
     m_bgColor[2] = 0.0f;
     m_bgColor[3] = 1.0f;
@@ -31,6 +33,7 @@ UINT Renderer::EnableDebugLayer()
 
 #if defined(_DEBUG)
     ComPtr<ID3D12Debug> debugController;
+
     if (SUCCEEDED(D3D12GetDebugInterface(
         IID_PPV_ARGS(&debugController))))
     {
@@ -43,19 +46,19 @@ UINT Renderer::EnableDebugLayer()
 }
 
 void Renderer::GetHardwareAdapter(
-    IDXGIFactory1* _factory,
-    IDXGIAdapter1** _adapter,
-    bool _requestHighPerformanceAdapter)
+    IDXGIFactory1* factory,
+    IDXGIAdapter1** outputAdapter,
+    bool requestHighPerformanceAdapter)
 {
-    *_adapter = nullptr;
+    *outputAdapter = nullptr;
 
     ComPtr<IDXGIAdapter1> adapter;
     ComPtr<IDXGIFactory6> factory6;
 
-    if (SUCCEEDED(_factory->QueryInterface(IID_PPV_ARGS(&factory6))))
+    if (SUCCEEDED(factory->QueryInterface(IID_PPV_ARGS(&factory6))))
     {
-        DXGI_GPU_PREFERENCE preference =
-            _requestHighPerformanceAdapter
+        const DXGI_GPU_PREFERENCE preference =
+            requestHighPerformanceAdapter
             ? DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE
             : DXGI_GPU_PREFERENCE_UNSPECIFIED;
 
@@ -72,17 +75,19 @@ void Renderer::GetHardwareAdapter(
                 continue;
 
             if (SUCCEEDED(D3D12CreateDevice(
-                adapter.Get(), D3D_FEATURE_LEVEL_11_0,
-                __uuidof(ID3D12Device), nullptr)))
+                adapter.Get(),
+                D3D_FEATURE_LEVEL_11_0,
+                __uuidof(ID3D12Device),
+                nullptr)))
             {
-                *_adapter = adapter.Detach();
+                *outputAdapter = adapter.Detach();
                 return;
             }
         }
     }
 
     for (UINT index = 0;
-        _factory->EnumAdapters1(index, &adapter)
+        factory->EnumAdapters1(index, &adapter)
         != DXGI_ERROR_NOT_FOUND;
         ++index)
     {
@@ -93,18 +98,20 @@ void Renderer::GetHardwareAdapter(
             continue;
 
         if (SUCCEEDED(D3D12CreateDevice(
-            adapter.Get(), D3D_FEATURE_LEVEL_11_0,
-            __uuidof(ID3D12Device), nullptr)))
+            adapter.Get(),
+            D3D_FEATURE_LEVEL_11_0,
+            __uuidof(ID3D12Device),
+            nullptr)))
         {
-            *_adapter = adapter.Detach();
+            *outputAdapter = adapter.Detach();
             return;
         }
     }
 }
 
-void Renderer::CreateDevice(bool _useWarpDevice)
+void Renderer::CreateDevice(bool useWarpDevice)
 {
-    if (_useWarpDevice)
+    if (useWarpDevice)
     {
         ComPtr<IDXGIAdapter> adapter;
 
@@ -135,37 +142,41 @@ void Renderer::CreateDevice(bool _useWarpDevice)
 }
 
 void Renderer::ConfigurePipeline(
-    bool _useWarpDevice,
-    HWND _hwnd,
-    int _wWidth,
-    int _wHeight)
+    bool useWarpDevice,
+    HWND hwnd,
+    int width,
+    int height)
 {
-    UINT flags = EnableDebugLayer();
+    const UINT flags = EnableDebugLayer();
 
     M_ASSERT(SUCCEEDED(CreateDXGIFactory2(
         flags, IID_PPV_ARGS(&m_factory))),
         "Failed to create DXGI factory.");
 
-    CreateDevice(_useWarpDevice);
+    CreateDevice(useWarpDevice);
 
     m_commands = new CommandController();
     m_commands->Create(m_device.Get());
 
-    CreateSwapChain(_hwnd, _wWidth, _wHeight);
+    CreateSwapChain(hwnd, width, height);
     CreateRenderTargetView();
+    CreateDepthBuffer(width, height);
     CreateFence();
-    CreateViewport(_wWidth, _wHeight);
+    CreateViewport(width, height);
 
-    m_factory->MakeWindowAssociation(_hwnd, DXGI_MWA_NO_ALT_ENTER);
+    m_factory->MakeWindowAssociation(
+        hwnd, DXGI_MWA_NO_ALT_ENTER);
+
     m_initialized = true;
 }
 
-void Renderer::CreateSwapChain(HWND _hwnd, int _wWidth, int _wHeight)
+void Renderer::CreateSwapChain(HWND hwnd, int width, int height)
 {
     DXGI_SWAP_CHAIN_DESC1 desc = {};
+
     desc.BufferCount = m_frameCount;
-    desc.Width = _wWidth;
-    desc.Height = _wHeight;
+    desc.Width = width;
+    desc.Height = height;
     desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
     desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
     desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
@@ -175,7 +186,11 @@ void Renderer::CreateSwapChain(HWND _hwnd, int _wWidth, int _wHeight)
 
     M_ASSERT(SUCCEEDED(m_factory->CreateSwapChainForHwnd(
         m_commands->GetCommandQueue().Get(),
-        _hwnd, &desc, nullptr, nullptr, &swapChain)),
+        hwnd,
+        &desc,
+        nullptr,
+        nullptr,
+        &swapChain)),
         "Failed to create swap chain.");
 
     M_ASSERT(SUCCEEDED(swapChain.As(&m_swapChain)),
@@ -194,8 +209,9 @@ void Renderer::CreateRenderTargetView()
         &desc, IID_PPV_ARGS(&m_rtvHeap))),
         "Failed to create RTV heap.");
 
-    m_rtvDescriptorSize = m_device->GetDescriptorHandleIncrementSize(
-        D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+    m_rtvDescriptorSize =
+        m_device->GetDescriptorHandleIncrementSize(
+            D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
     CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
         m_rtvHeap->GetCPUDescriptorHandleForHeapStart());
@@ -213,6 +229,48 @@ void Renderer::CreateRenderTargetView()
     }
 }
 
+void Renderer::CreateDepthBuffer(int width, int height)
+{
+    D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
+    heapDesc.NumDescriptors = 1;
+    heapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_DSV;
+
+    M_ASSERT(SUCCEEDED(m_device->CreateDescriptorHeap(
+        &heapDesc, IID_PPV_ARGS(&m_dsvHeap))),
+        "Failed to create depth descriptor heap.");
+
+    auto depthDesc = CD3DX12_RESOURCE_DESC::Tex2D(
+        DXGI_FORMAT_D32_FLOAT,
+        static_cast<UINT64>(width),
+        static_cast<UINT>(height),
+        1,
+        1);
+
+    depthDesc.Flags = D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL;
+
+    CD3DX12_HEAP_PROPERTIES heapProperties(
+        D3D12_HEAP_TYPE_DEFAULT);
+
+    D3D12_CLEAR_VALUE clearValue = {};
+    clearValue.Format = DXGI_FORMAT_D32_FLOAT;
+    clearValue.DepthStencil.Depth = 1.0f;
+    clearValue.DepthStencil.Stencil = 0;
+
+    M_ASSERT(SUCCEEDED(m_device->CreateCommittedResource(
+        &heapProperties,
+        D3D12_HEAP_FLAG_NONE,
+        &depthDesc,
+        D3D12_RESOURCE_STATE_DEPTH_WRITE,
+        &clearValue,
+        IID_PPV_ARGS(&m_depthBuffer))),
+        "Failed to create depth buffer.");
+
+    m_device->CreateDepthStencilView(
+        m_depthBuffer.Get(),
+        nullptr,
+        m_dsvHeap->GetCPUDescriptorHandleForHeapStart());
+}
+
 void Renderer::CreateFence()
 {
     M_ASSERT(SUCCEEDED(m_device->CreateFence(
@@ -226,22 +284,23 @@ void Renderer::CreateFence()
         "Failed to create fence event.");
 }
 
-void Renderer::CreateViewport(int _wWidth, int _wHeight)
+void Renderer::CreateViewport(int width, int height)
 {
     m_viewport = CD3DX12_VIEWPORT(
-        0.0f, 0.0f,
-        static_cast<float>(_wWidth),
-        static_cast<float>(_wHeight));
+        0.0f,
+        0.0f,
+        static_cast<float>(width),
+        static_cast<float>(height));
 
-    m_scissorRect = CD3DX12_RECT(0, 0, _wWidth, _wHeight);
+    m_scissorRect = CD3DX12_RECT(0, 0, width, height);
 }
 
-void Renderer::Render(IRenderable* _renderable, XMMATRIX _viewProj)
+void Renderer::Render(IRenderable* renderable, XMMATRIX viewProj)
 {
-    if (!m_initialized || !_renderable)
+    if (!m_initialized || !renderable)
         return;
 
-    PopulateCommandList(_renderable, _viewProj);
+    PopulateCommandList(renderable, viewProj);
     m_commands->Execute();
 
     M_ASSERT(SUCCEEDED(m_swapChain->Present(1, 0)),
@@ -251,28 +310,45 @@ void Renderer::Render(IRenderable* _renderable, XMMATRIX _viewProj)
 }
 
 void Renderer::PopulateCommandList(
-    IRenderable* _renderable, XMMATRIX _viewProj)
+    IRenderable* renderable,
+    XMMATRIX viewProj)
 {
     m_commands->Reset(
-        _renderable->GetShader()->GetPipelineState().Get());
+        renderable->GetShader()->GetPipelineState().Get());
 
     m_commands->AddBarrier(
         m_renderTargets[m_frameIndex].Get(),
         D3D12_RESOURCE_STATE_PRESENT,
         D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    CD3DX12_CPU_DESCRIPTOR_HANDLE handle(
+    CD3DX12_CPU_DESCRIPTOR_HANDLE renderTargetHandle(
         m_rtvHeap->GetCPUDescriptorHandleForHeapStart(),
-        m_frameIndex, m_rtvDescriptorSize);
+        m_frameIndex,
+        m_rtvDescriptorSize);
+
+    const auto depthHandle =
+        m_dsvHeap->GetCPUDescriptorHandleForHeapStart();
 
     auto commands = m_commands->GetCommandList().Get();
 
-    commands->OMSetRenderTargets(1, &handle, FALSE, nullptr);
+    commands->OMSetRenderTargets(
+        1, &renderTargetHandle, FALSE, &depthHandle);
+
+    commands->ClearDepthStencilView(
+        depthHandle,
+        D3D12_CLEAR_FLAG_DEPTH,
+        1.0f,
+        0,
+        0,
+        nullptr);
+
     commands->RSSetViewports(1, &m_viewport);
     commands->RSSetScissorRects(1, &m_scissorRect);
-    commands->ClearRenderTargetView(handle, m_bgColor, 0, nullptr);
 
-    _renderable->Render(_viewProj);
+    commands->ClearRenderTargetView(
+        renderTargetHandle, m_bgColor, 0, nullptr);
+
+    renderable->Render(viewProj);
 
     m_commands->AddBarrier(
         m_renderTargets[m_frameIndex].Get(),
@@ -287,16 +363,16 @@ void Renderer::WaitForPreviousFrame()
     if (!m_commands || !m_fence || !m_fenceEvent)
         return;
 
-    const UINT64 fence = m_fenceValue++;
+    const UINT64 fenceValue = m_fenceValue++;
 
     M_ASSERT(SUCCEEDED(m_commands->GetCommandQueue()->Signal(
-        m_fence.Get(), fence)),
+        m_fence.Get(), fenceValue)),
         "Failed to signal fence.");
 
-    if (m_fence->GetCompletedValue() < fence)
+    if (m_fence->GetCompletedValue() < fenceValue)
     {
         M_ASSERT(SUCCEEDED(m_fence->SetEventOnCompletion(
-            fence, m_fenceEvent)),
+            fenceValue, m_fenceEvent)),
             "Failed to set fence event.");
 
         WaitForSingleObject(m_fenceEvent, INFINITE);

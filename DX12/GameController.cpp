@@ -9,27 +9,161 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstdio>
 
-class LightingScene : public IRenderable
+namespace
 {
-public:
-    LightingScene(Unit& cube, Unit& light)
-        : m_cube(cube), m_light(light)
+    enum class Mode
     {
-        SetShader(cube.GetShader());
+        MoveLight = 0,
+        ColorByPosition = 1,
+        MoveToCube = 2
+    };
+
+    const XMFLOAT3 LIGHT_START(1.0f, -0.6f, -0.8f);
+
+    // Centered cube with its original texture colors.
+    const XMFLOAT3 TARGET_START(0.0f, 0.0f, 0.0f);
+
+    // Separate starting position for the chase mode.
+    const XMFLOAT3 CHASE_START(0.0f, 0.2f, 0.7f);
+
+    const XMFLOAT3 WOOD_CENTER(0.0f, 0.0f, 0.0f);
+    const XMFLOAT3 WOOD_CHASE_POSITION(0.45f, -0.15f, 0.0f);
+
+    const XMFLOAT3 WOOD_SCALE(0.8f, 0.8f, 0.8f);
+    const XMFLOAT3 COLOR_SCALE(0.8f, 0.8f, 0.8f);
+    const XMFLOAT3 CHASE_SCALE(0.8f, 0.8f, 0.8f);
+    const XMFLOAT3 LIGHT_SCALE(0.15f, 0.15f, 0.15f);
+
+    bool CubesTouch(const Unit& light, const Unit& target)
+    {
+        const auto lightPosition = light.GetPosition();
+        const auto targetPosition = target.GetPosition();
+
+        const auto lightScale = light.GetScale();
+        const auto targetScale = target.GetScale();
+
+        const auto rotation = target.GetRotation();
+
+        const XMMATRIX targetRotation =
+            XMMatrixRotationRollPitchYaw(
+                rotation.x,
+                rotation.y,
+                rotation.z);
+
+        const XMVECTOR lightAxes[3] =
+        {
+            XMVectorSet(1, 0, 0, 0),
+            XMVectorSet(0, 1, 0, 0),
+            XMVectorSet(0, 0, 1, 0)
+        };
+
+        const XMVECTOR targetAxes[3] =
+        {
+            targetRotation.r[0],
+            targetRotation.r[1],
+            targetRotation.r[2]
+        };
+
+        const float lightHalfSize[3] =
+        {
+            lightScale.x * 0.5f,
+            lightScale.y * 0.5f,
+            lightScale.z * 0.5f
+        };
+
+        const float targetHalfSize[3] =
+        {
+            targetScale.x * 0.5f,
+            targetScale.y * 0.5f,
+            targetScale.z * 0.5f
+        };
+
+        const XMVECTOR delta = XMVectorSubtract(
+            XMLoadFloat3(&targetPosition),
+            XMLoadFloat3(&lightPosition));
+
+        auto separated = [&](XMVECTOR axis)
+            {
+                const float axisLengthSquared =
+                    XMVectorGetX(XMVector3LengthSq(axis));
+
+                if (axisLengthSquared < 1e-8f)
+                    return false;
+
+                float radius = 0.0f;
+
+                for (int i = 0; i < 3; ++i)
+                {
+                    radius += lightHalfSize[i] * std::fabs(
+                        XMVectorGetX(
+                            XMVector3Dot(lightAxes[i], axis)));
+
+                    radius += targetHalfSize[i] * std::fabs(
+                        XMVectorGetX(
+                            XMVector3Dot(targetAxes[i], axis)));
+                }
+
+                const float distance = std::fabs(
+                    XMVectorGetX(XMVector3Dot(delta, axis)));
+
+                return distance > radius + 1e-5f;
+            };
+
+        for (int i = 0; i < 3; ++i)
+        {
+            if (separated(lightAxes[i]) ||
+                separated(targetAxes[i]))
+            {
+                return false;
+            }
+
+            for (int j = 0; j < 3; ++j)
+            {
+                if (separated(
+                    XMVector3Cross(
+                        lightAxes[i],
+                        targetAxes[j])))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
-    void Render(XMMATRIX viewProj) override
+    class MidtermScene : public IRenderable
     {
-        m_cube.Render(viewProj);
-        m_light.Render(viewProj);
-    }
+    public:
+        MidtermScene(Unit& wood, Unit& target, Unit& light)
+            : m_wood(wood),
+            m_target(target),
+            m_light(light)
+        {
+            SetShader(wood.GetShader());
+        }
 
-private:
-    Unit& m_cube;
-    Unit& m_light;
-};
+        Mode mode = Mode::MoveLight;
+
+        void Render(XMMATRIX viewProj) override
+        {
+            if (mode != Mode::ColorByPosition)
+                m_wood.Render(viewProj);
+
+            if (mode != Mode::MoveLight)
+                m_target.Render(viewProj);
+
+            if (mode != Mode::ColorByPosition)
+                m_light.Render(viewProj);
+        }
+
+    private:
+        Unit& m_wood;
+        Unit& m_target;
+        Unit& m_light;
+    };
+}
 
 GameController::GameController()
 {
@@ -76,52 +210,95 @@ void GameController::Run()
 {
     m_toolsC->ShowForm();
 
-    ShaderPhong cubeShader;
-    cubeShader.Initialize();
-
+    ShaderPhong woodShader;
+    ShaderPhong targetShader;
     ShaderPhong lightShader;
+
+    woodShader.Initialize();
+    targetShader.Initialize();
     lightShader.Initialize();
 
-    Unit cube;
-    cube.Initialize(&cubeShader);
-    cube.SetScale(XMFLOAT3(0.8f, 0.8f, 0.8f));
-
+    Unit wood;
+    Unit target;
     Unit light;
+
+    wood.Initialize(&woodShader);
+
+    target.Initialize(
+        &targetShader,
+        L"..\\Assets\\Textures\\BrickWall.dds",
+        L"..\\Assets\\Textures\\Flowers.dds");
+
     light.Initialize(&lightShader);
-    light.SetScale(XMFLOAT3(0.15f, 0.15f, 0.15f));
 
-    LightingScene scene(cube, light);
+    wood.SetScale(WOOD_SCALE);
+    wood.SetPosition(WOOD_CENTER);
+    wood.SetRotation(XMFLOAT3(0.0f, 0.0f, 0.0f));
 
-    XMFLOAT4 diffuseColor(1.0f, 1.0f, 1.0f, 1.0f);
-    XMFLOAT4 ambientLight(0.15f, 0.15f, 0.15f, 1.0f);
-    XMFLOAT4 lightColor(1.0f, 1.0f, 1.0f, 1.0f);
+    target.SetScale(COLOR_SCALE);
+    target.SetPosition(TARGET_START);
+    target.SetRotation(XMFLOAT3(0.0f, 0.0f, 0.0f));
 
-    XMFLOAT3 lightPosition(-0.8f, 0.8f, -1.0f);
+    light.SetScale(LIGHT_SCALE);
+    light.SetPosition(LIGHT_START);
+    light.SetRotation(XMFLOAT3(0.0f, 0.0f, 0.0f));
 
-    cubeShader.SetIsLightCube(false);
-
-    cubeShader.SetSpecularColor(
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+    targetShader.SetColorByPosition(true);
 
     lightShader.SetIsLightCube(true);
-
     lightShader.SetDiffuseColor(
+        XMFLOAT4(1.0f, 0.0f, 0.0f, 1.0f));
+
+    woodShader.SetDiffuseColor(
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 
-    int editMode = 4;
-    bool rotating = true;
-    bool previousSpace = false;
+    woodShader.SetAmbientLight(
+        XMFLOAT4(0.15f, 0.15f, 0.15f, 1.0f));
+
+    woodShader.SetLightColor(
+        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
+
+    // Lower power produces a wider highlight.
+    woodShader.SetSpecularPower(16.0f);
+
+    XMFLOAT4 cameraPosition;
+
+    XMStoreFloat4(
+        &cameraPosition,
+        XMMatrixInverse(
+            nullptr,
+            m_camera->GetView()).r[3]);
+
+    woodShader.SetCameraPosition(cameraPosition);
+
+    float* background = m_renderer->GetBGColor();
+
+    background[0] = 0.0f;
+    background[1] = 0.0f;
+    background[2] = 0.0f;
+    background[3] = 1.0f;
+
+    SetWindowTextW(
+        m_windowC->GetHWND(),
+        L"DirectX12 Midterm | Arrows: X/Y | Z/X: depth");
+
+    MidtermScene scene(wood, target, light);
 
     using Clock = std::chrono::steady_clock;
     auto previousTime = Clock::now();
 
-    MSG message = {};
     bool running = true;
 
     while (running)
     {
+        MSG message = {};
+
         while (PeekMessage(
-            &message, nullptr, 0, 0, PM_REMOVE))
+            &message,
+            nullptr,
+            0,
+            0,
+            PM_REMOVE))
         {
             if (message.message == WM_QUIT)
             {
@@ -134,201 +311,155 @@ void GameController::Run()
         }
 
         if (!running)
-        {
             break;
-        }
 
-        auto currentTime = Clock::now();
+        const auto currentTime = Clock::now();
 
-        float deltaTime =
+        const float deltaTime = (std::min)(
             std::chrono::duration<float>(
-                currentTime - previousTime).count();
+                currentTime - previousTime).count(),
+            0.05f);
 
         previousTime = currentTime;
-        deltaTime = std::min(deltaTime, 0.05f);
 
-        // Poll the renderer window's controls directly.
-        // This also supports the numeric keypad.
-        bool active =
+        const Mode nextMode =
+            static_cast<Mode>(m_toolsC->GetMode());
+
+        if (nextMode != scene.mode)
+        {
+            if (nextMode == Mode::ColorByPosition)
+            {
+                target.SetPosition(TARGET_START);
+                target.SetScale(COLOR_SCALE);
+            }
+            else if (nextMode == Mode::MoveToCube)
+            {
+                target.SetPosition(CHASE_START);
+                target.SetScale(CHASE_SCALE);
+
+                light.SetPosition(LIGHT_START);
+            }
+
+            scene.mode = nextMode;
+        }
+
+        wood.SetPosition(
+            scene.mode == Mode::MoveToCube
+            ? WOOD_CHASE_POSITION
+            : WOOD_CENTER);
+
+        if (m_toolsC->ConsumeResetLight())
+        {
+            light.SetPosition(LIGHT_START);
+        }
+
+        if (m_toolsC->ConsumeResetCube())
+        {
+            target.SetPosition(
+                scene.mode == Mode::MoveToCube
+                ? CHASE_START
+                : TARGET_START);
+        }
+
+        const bool active =
             GetForegroundWindow() == m_windowC->GetHWND();
 
-        auto pressed = [active](int key) -> bool
+        auto pressed = [active](int key)
             {
                 return active &&
                     (GetAsyncKeyState(key) & 0x8000) != 0;
             };
 
         if (pressed(VK_ESCAPE))
+            break;
+
+        // Move the light in mode 0.
+        // Move the textured cube in modes 1 and 2.
+        Unit& selected =
+            scene.mode == Mode::MoveLight
+            ? light
+            : target;
+
+        auto position = selected.GetPosition();
+
+        const float movement = 1.1f * deltaTime;
+
+        position.x +=
+            (float(pressed(VK_RIGHT)) -
+                float(pressed(VK_LEFT))) * movement;
+
+        position.y +=
+            (float(pressed(VK_UP)) -
+                float(pressed(VK_DOWN))) * movement;
+
+        position.z +=
+            (float(pressed('X')) -
+                float(pressed('Z'))) * movement;
+
+        // The red light cube can move beyond the screen.
+        
+
+        selected.SetPosition(position);
+
+        if (scene.mode == Mode::MoveToCube)
         {
-            running = false;
-            continue;
+            const auto targetPosition =
+                target.GetPosition();
+
+            auto lightPosition =
+                light.GetPosition();
+
+            const XMVECTOR offset = XMVectorSubtract(
+                XMLoadFloat3(&targetPosition),
+                XMLoadFloat3(&lightPosition));
+
+            const float distance =
+                XMVectorGetX(XMVector3Length(offset));
+
+            if (distance > 1e-6f)
+            {
+                const float step =
+                    (std::min)(0.75f * deltaTime, distance);
+
+                const XMVECTOR nextPosition = XMVectorAdd(
+                    XMLoadFloat3(&lightPosition),
+                    XMVectorScale(offset, step / distance));
+
+                XMStoreFloat3(
+                    &lightPosition,
+                    nextPosition);
+
+                light.SetPosition(lightPosition);
+            }
+
+            if (CubesTouch(light, target))
+            {
+                light.SetPosition(LIGHT_START);
+            }
         }
 
-        if (pressed('1') || pressed(VK_NUMPAD1))
-            editMode = 1;
+        woodShader.SetLightPosition(
+            light.GetPosition());
 
-        if (pressed('2') || pressed(VK_NUMPAD2))
-            editMode = 2;
+        woodShader.SetSpecularStrength(
+            m_toolsC->GetSpecularStrength() * 5.0f);
 
-        if (pressed('3') || pressed(VK_NUMPAD3))
-            editMode = 3;
+        const XMFLOAT4 selectedColor =
+            m_toolsC->GetSpecularColor();
 
-        if (pressed('4') || pressed(VK_NUMPAD4))
-            editMode = 4;
+        woodShader.SetSpecularColor(selectedColor);
 
-        bool space = pressed(VK_SPACE);
+        // RGB also colors the illuminated surface,
+        // as requested for the top face.
+        woodShader.SetLightColor(
+            XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 
-        if (space && !previousSpace)
-        {
-            rotating = !rotating;
-        }
-
-        previousSpace = space;
-
-        float x =
-            (static_cast<float>(pressed(VK_RIGHT)) -
-                static_cast<float>(pressed(VK_LEFT))) * deltaTime;
-
-        float y =
-            (static_cast<float>(pressed(VK_UP)) -
-                static_cast<float>(pressed(VK_DOWN))) * deltaTime;
-
-        float z =
-            (static_cast<float>(pressed(VK_PRIOR)) -
-                static_cast<float>(pressed(VK_NEXT))) * deltaTime;
-
-        if (editMode == 4)
-        {
-            lightPosition.x = std::clamp(
-                lightPosition.x + x, -1.2f, 1.2f);
-
-            lightPosition.y = std::clamp(
-                lightPosition.y + y, -1.0f, 1.2f);
-
-            lightPosition.z = std::clamp(
-                lightPosition.z + z, -1.5f, 1.0f);
-        }
-        else
-        {
-            XMFLOAT4* color = &diffuseColor;
-
-            if (editMode == 2)
-                color = &ambientLight;
-
-            if (editMode == 3)
-                color = &lightColor;
-
-            color->x = std::clamp(
-                color->x + x, 0.0f, 1.0f);
-
-            color->y = std::clamp(
-                color->y + y, 0.0f, 1.0f);
-
-            color->z = std::clamp(
-                color->z + z, 0.0f, 1.0f);
-        }
-
-        if (rotating)
-        {
-            XMFLOAT3 rotation = cube.GetRotation();
-
-            rotation.y = std::fmod(
-                rotation.y + deltaTime * 0.6f,
-                XM_2PI);
-
-            cube.SetRotation(rotation);
-        }
-
-        light.SetPosition(lightPosition);
-
-        // Recover camera position from the actual view matrix.
-        XMMATRIX inverseView =
-            XMMatrixInverse(nullptr, m_camera->GetView());
-
-        XMFLOAT4 cameraPosition;
-
-        XMStoreFloat4(
-            &cameraPosition,
-            inverseView.r[3]);
-
-        cubeShader.SetCameraPosition(cameraPosition);
-        cubeShader.SetLightPosition(lightPosition);
-
-        cubeShader.SetDiffuseColor(diffuseColor);
-        cubeShader.SetAmbientLight(ambientLight);
-        cubeShader.SetLightColor(lightColor);
-
-        // Read the sliders every frame.
-        cubeShader.SetSpecularPower(
-            m_toolsC->GetSpecularPower());
-
-        cubeShader.SetSpecularStrength(
-            m_toolsC->GetSpecularStrength());
-
-        float* background = m_renderer->GetBGColor();
-
-        background[0] =
-            m_toolsC->GetRedData() ? 1.0f : 0.0f;
-
-        background[1] =
-            m_toolsC->GetGreenData() ? 1.0f : 0.0f;
-
-        background[2] =
-            m_toolsC->GetBlueData() ? 1.0f : 0.0f;
-
-        background[3] = 1.0f;
-
-        const wchar_t* mode = L"Object color";
-
-        XMFLOAT3 values(
-            diffuseColor.x,
-            diffuseColor.y,
-            diffuseColor.z);
-
-        if (editMode == 2)
-        {
-            mode = L"Ambient";
-
-            values = XMFLOAT3(
-                ambientLight.x,
-                ambientLight.y,
-                ambientLight.z);
-        }
-        else if (editMode == 3)
-        {
-            mode = L"Light color";
-
-            values = XMFLOAT3(
-                lightColor.x,
-                lightColor.y,
-                lightColor.z);
-        }
-        else if (editMode == 4)
-        {
-            mode = L"Light position";
-            values = lightPosition;
-        }
-
-        wchar_t title[256] = {};
-
-        swprintf_s(
-            title,
-            _countof(title),
-            L"Task 2 | %ls: %.2f %.2f %.2f | "
-            L"Power %.0f | 1-4 select | Space pause",
-            mode,
-            values.x,
-            values.y,
-            values.z,
-            m_toolsC->GetSpecularPower());
-
-        SetWindowTextW(m_windowC->GetHWND(), title);
-
-        XMMATRIX viewProj =
-            m_camera->GetView() * m_camera->GetProjection();
-
-        m_renderer->Render(&scene, viewProj);
+        m_renderer->Render(
+            &scene,
+            m_camera->GetView() *
+            m_camera->GetProjection());
     }
 
     m_renderer->WaitForPreviousFrame();
+    m_toolsC->CloseForm();
 }

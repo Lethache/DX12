@@ -9,151 +9,158 @@ namespace ToolsGUI
     public ref class ToolsForm : public Form
     {
     public:
-        CheckBox^ checkBoxRed;
-        CheckBox^ checkBoxGreen;
-        CheckBox^ checkBoxBlue;
+        RadioButton^ moveLight;
+        RadioButton^ colorByPosition;
+        RadioButton^ moveToCube;
+
+        TrackBar^ strength;
+        TrackBar^ red;
+        TrackBar^ green;
+        TrackBar^ blue;
+
+        bool resetLight;
+        bool resetCube;
 
         ToolsForm()
         {
-            checkBoxRed = CreateCheckBox(L"Red", 20);
-            checkBoxGreen = CreateCheckBox(L"Green", 45);
-            checkBoxBlue = CreateCheckBox(L"Blue", 70);
-
-            Controls->Add(checkBoxRed);
-            Controls->Add(checkBoxGreen);
-            Controls->Add(checkBoxBlue);
-
-            Text = L"Background";
-            ClientSize = System::Drawing::Size(135, 120);
-
-            FormBorderStyle =
-                System::Windows::Forms::FormBorderStyle::FixedToolWindow;
-
-            ControlBox = false;
-            TopMost = true;
-            MaximizeBox = false;
-            MinimizeBox = false;
-        }
-
-    private:
-        CheckBox^ CreateCheckBox(String^ text, int y)
-        {
-            CheckBox^ box = gcnew CheckBox();
-
-            box->Text = text;
-            box->Location = Point(15, y);
-            box->AutoSize = true;
-            box->Checked = false;
-
-            return box;
-        }
-    };
-
-    public ref class LightingForm : public Form
-    {
-    public:
-        TrackBar^ trackBarPower;
-        TrackBar^ trackBarStrength;
-
-        LightingForm()
-        {
-            Text = L"Lighting Controls";
+            Text = L"ToolsForm";
 
             ClientSize =
-                System::Drawing::Size(360, 205);
+                System::Drawing::Size(540, 390);
 
             FormBorderStyle =
                 System::Windows::Forms::FormBorderStyle::FixedToolWindow;
 
             ControlBox = false;
-            TopMost = true;
             MaximizeBox = false;
             MinimizeBox = false;
 
-            StartPosition =
-                FormStartPosition::Manual;
+            StartPosition = FormStartPosition::Manual;
+            Location = Point(20, 80);
 
-            Location = Point(180, 80);
+            resetLight = false;
+            resetCube = false;
 
-            Label^ powerTitle = gcnew Label();
-            powerTitle->Text = L"Specular Power";
-            powerTitle->Location = Point(15, 15);
-            powerTitle->AutoSize = true;
+            moveLight = AddMode(
+                L"Move Light", 15);
 
-            trackBarPower = gcnew TrackBar();
-            trackBarPower->Location = Point(10, 40);
-            trackBarPower->Size =
-                System::Drawing::Size(280, 45);
+            moveLight->Checked = true;
 
-            trackBarPower->Minimum = 1;
-            trackBarPower->Maximum = 128;
-            trackBarPower->Value = 32;
-            trackBarPower->TickFrequency = 16;
+            Button^ resetLightButton = AddButton(
+                L"Reset Light Position", 42);
 
-            labelPower = gcnew Label();
-            labelPower->Location = Point(300, 45);
-            labelPower->AutoSize = true;
-
-            Label^ strengthTitle = gcnew Label();
-            strengthTitle->Text = L"Specular Strength";
-            strengthTitle->Location = Point(15, 100);
-            strengthTitle->AutoSize = true;
-
-            trackBarStrength = gcnew TrackBar();
-            trackBarStrength->Location = Point(10, 125);
-            trackBarStrength->Size =
-                System::Drawing::Size(280, 45);
-
-            trackBarStrength->Minimum = 0;
-            trackBarStrength->Maximum = 200;
-            trackBarStrength->Value = 80;
-            trackBarStrength->TickFrequency = 20;
-
-            labelStrength = gcnew Label();
-            labelStrength->Location = Point(300, 130);
-            labelStrength->AutoSize = true;
-
-            trackBarPower->ValueChanged +=
+            resetLightButton->Click +=
                 gcnew EventHandler(
                     this,
-                    &LightingForm::SliderChanged);
+                    &ToolsForm::ResetLight);
 
-            trackBarStrength->ValueChanged +=
+            strength = AddSlider(
+                L"Specular Strength",
+                80,
+                200,
+                80);
+
+            red = AddSlider(
+                L"Specular Color   R",
+                130,
+                100,
+                100);
+
+            green = AddSlider(
+                L"G",
+                175,
+                100,
+                100);
+
+            blue = AddSlider(
+                L"B",
+                220,
+                100,
+                100);
+
+            colorByPosition = AddMode(
+                L"Color By Position", 270);
+
+            Button^ resetCubeButton = AddButton(
+                L"Reset Cube Position", 297);
+
+            resetCubeButton->Click +=
                 gcnew EventHandler(
                     this,
-                    &LightingForm::SliderChanged);
+                    &ToolsForm::ResetCube);
 
-            Controls->Add(powerTitle);
-            Controls->Add(trackBarPower);
-            Controls->Add(labelPower);
-
-            Controls->Add(strengthTitle);
-            Controls->Add(trackBarStrength);
-            Controls->Add(labelStrength);
-
-            UpdateLabels();
+            moveToCube = AddMode(
+                L"Move Light To Cube", 345);
         }
 
     private:
-        Label^ labelPower;
-        Label^ labelStrength;
-
-        void UpdateLabels()
+        RadioButton^ AddMode(String^ title, int y)
         {
-            labelPower->Text =
-                trackBarPower->Value.ToString();
+            RadioButton^ item = gcnew RadioButton();
 
-            float strength =
-                static_cast<float>(
-                    trackBarStrength->Value) / 100.0f;
+            item->Text = title;
+            item->Location = Point(18, y);
+            item->AutoSize = true;
 
-            labelStrength->Text =
-                strength.ToString(L"F2");
+            Controls->Add(item);
+
+            return item;
         }
 
-        void SliderChanged(Object^ sender, EventArgs^ e)
+        Button^ AddButton(String^ title, int y)
         {
-            UpdateLabels();
+            Button^ item = gcnew Button();
+
+            item->Text = title;
+            item->Location = Point(35, y);
+
+            item->Size =
+                System::Drawing::Size(150, 25);
+
+            Controls->Add(item);
+
+            return item;
+        }
+
+        TrackBar^ AddSlider(
+            String^ title,
+            int y,
+            int maximum,
+            int value)
+        {
+            Label^ label = gcnew Label();
+
+            label->Text = title;
+            label->Location = Point(20, y + 8);
+            label->AutoSize = true;
+
+            Controls->Add(label);
+
+            TrackBar^ bar = gcnew TrackBar();
+
+            bar->Location = Point(140, y);
+
+            bar->Size =
+                System::Drawing::Size(380, 40);
+
+            bar->Minimum = 0;
+            bar->Maximum = maximum;
+            bar->Value = value;
+            bar->TickFrequency = maximum / 10;
+
+            Controls->Add(bar);
+
+            return bar;
+        }
+
+        void ResetLight(Object^ sender, EventArgs^ e)
+        {
+            resetLight = true;
+        }
+
+        void ResetCube(Object^ sender, EventArgs^ e)
+        {
+            resetCube = true;
         }
     };
 }

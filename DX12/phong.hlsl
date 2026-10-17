@@ -15,7 +15,7 @@ cbuffer SceneData : register(b0)
     float SpecularPower;
     float SpecularStrength;
     uint IsLightCube;
-    float pad1;
+    uint ColorByPosition;
 
     float4 SpecularColor;
     float4 CameraPosition;
@@ -37,6 +37,8 @@ struct PSInput
 };
 
 Texture2D g_diffuse : register(t0);
+Texture2D g_secondTexture : register(t1);
+
 SamplerState g_sampler : register(s0);
 
 PSInput VSMain(VSInput input)
@@ -59,24 +61,75 @@ PSInput VSMain(VSInput input)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
+    // Solid color for the red light marker.
     if (IsLightCube != 0)
     {
         return DiffuseColor;
     }
 
+    float4 textureColor =
+        g_diffuse.Sample(g_sampler, input.uv);
+
+    // Used by the textured cube in both movement modes.
+    if (ColorByPosition != 0)
+    {
+        float4 secondTextureColor =
+            g_secondTexture.Sample(g_sampler, input.uv);
+
+        float3 combinedTexture = lerp(
+            textureColor.rgb,
+            secondTextureColor.rgb,
+            0.5f);
+
+        // World-space position of the cube's center.
+        float3 cubePosition =
+            mul(float4(0.0f, 0.0f, 0.0f, 1.0f), World).xyz;
+
+        float3 neutralPosition =
+            float3(0.0f, 0.0f, 0.0f);
+
+        // Positive and negative movement use the same colors.
+        float3 distanceByAxis =
+            abs(cubePosition - neutralPosition);
+
+        float largestDistance = max(
+            distanceByAxis.x,
+            max(distanceByAxis.y, distanceByAxis.z));
+
+        // X -> red, Y -> green, Z -> blue.
+        // Movement along multiple axes mixes the colors.
+        float3 axisColor =
+            distanceByAxis / max(largestDistance, 0.000001f);
+
+        // Keep original texture colors at the center.
+        // Increase the tint smoothly away from the center.
+        float tintStrength =
+    0.65f * smoothstep(0.0f, 3.0f, largestDistance);
+
+        float3 tint = lerp(
+            float3(1.0f, 1.0f, 1.0f),
+            axisColor,
+            tintStrength);
+
+        return float4(combinedTexture * tint, 1.0f);
+    }
+
+    // Phong lighting for the wooden cube.
     float3 normal = normalize(input.normal);
 
     float3 lightOffset =
         LightPosition - input.worldPosition;
 
     float3 lightDirection =
-        lightOffset * rsqrt(max(dot(lightOffset, lightOffset), 0.000001f));
+        lightOffset * rsqrt(
+            max(dot(lightOffset, lightOffset), 0.000001f));
 
     float3 viewOffset =
         CameraPosition.xyz - input.worldPosition;
 
     float3 viewDirection =
-        viewOffset * rsqrt(max(dot(viewOffset, viewOffset), 0.000001f));
+        viewOffset * rsqrt(
+            max(dot(viewOffset, viewOffset), 0.000001f));
 
     float diffuseAmount =
         saturate(dot(normal, lightDirection));
@@ -93,13 +146,13 @@ float4 PSMain(PSInput input) : SV_TARGET
             max(SpecularPower, 1.0f));
     }
 
-    float4 textureColor =
-        g_diffuse.Sample(g_sampler, input.uv);
-
     float3 diffuse =
         textureColor.rgb
         * DiffuseColor.rgb
-        * (AmbientLight.rgb + LightColor.rgb * diffuseAmount);
+        * (
+            AmbientLight.rgb
+            + LightColor.rgb * diffuseAmount
+        );
 
     float3 specular =
         SpecularColor.rgb

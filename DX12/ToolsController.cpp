@@ -5,13 +5,17 @@ ToolsController::ToolsController()
     m_module = nullptr;
 
     m_showForm = nullptr;
+    m_closeForm = nullptr;
 
-    m_getRedData = nullptr;
-    m_getGreenData = nullptr;
-    m_getBlueData = nullptr;
+    m_getMode = nullptr;
 
-    m_getSpecularPower = nullptr;
+    m_resetLight = nullptr;
+    m_resetCube = nullptr;
+
     m_getSpecularStrength = nullptr;
+    m_getSpecularRed = nullptr;
+    m_getSpecularGreen = nullptr;
+    m_getSpecularBlue = nullptr;
 }
 
 ToolsController::~ToolsController()
@@ -34,51 +38,95 @@ void ToolsController::LoadToolsLibrary()
 
     M_ASSERT(
         m_module != nullptr,
-        "Failed to load ToolsGUI.dll");
+        "Failed to load ToolsGUI.dll. Build ToolsGUI first.");
 
-    m_showForm = reinterpret_cast<ShowToolsForm>(
-        GetProcAddress(m_module, "ShowToolsForm"));
-
-    m_getRedData = reinterpret_cast<GetToolsBoolData>(
-        GetProcAddress(m_module, "GetToolsRedData"));
-
-    m_getGreenData = reinterpret_cast<GetToolsBoolData>(
-        GetProcAddress(m_module, "GetToolsGreenData"));
-
-    m_getBlueData = reinterpret_cast<GetToolsBoolData>(
-        GetProcAddress(m_module, "GetToolsBlueData"));
-
-    m_getSpecularPower =
-        reinterpret_cast<GetToolsFloatData>(
+    m_showForm =
+        reinterpret_cast<ToolsVoidFunction>(
             GetProcAddress(
                 m_module,
-                "GetToolsSpecularPower"));
+                "ShowToolsForm"));
+
+    m_closeForm =
+        reinterpret_cast<ToolsVoidFunction>(
+            GetProcAddress(
+                m_module,
+                "CloseToolsForm"));
+
+    m_getMode =
+        reinterpret_cast<ToolsIntFunction>(
+            GetProcAddress(
+                m_module,
+                "GetToolsMode"));
+
+    m_resetLight =
+        reinterpret_cast<ToolsBoolFunction>(
+            GetProcAddress(
+                m_module,
+                "ConsumeResetLight"));
+
+    m_resetCube =
+        reinterpret_cast<ToolsBoolFunction>(
+            GetProcAddress(
+                m_module,
+                "ConsumeResetCube"));
 
     m_getSpecularStrength =
-        reinterpret_cast<GetToolsFloatData>(
+        reinterpret_cast<ToolsFloatFunction>(
             GetProcAddress(
                 m_module,
                 "GetToolsSpecularStrength"));
 
-    M_ASSERT(m_showForm != nullptr, "Missing ShowToolsForm");
+    m_getSpecularRed =
+        reinterpret_cast<ToolsFloatFunction>(
+            GetProcAddress(
+                m_module,
+                "GetToolsSpecularRed"));
+
+    m_getSpecularGreen =
+        reinterpret_cast<ToolsFloatFunction>(
+            GetProcAddress(
+                m_module,
+                "GetToolsSpecularGreen"));
+
+    m_getSpecularBlue =
+        reinterpret_cast<ToolsFloatFunction>(
+            GetProcAddress(
+                m_module,
+                "GetToolsSpecularBlue"));
 
     M_ASSERT(
-        m_getRedData != nullptr,
-        "Missing GetToolsRedData");
+        m_showForm != nullptr,
+        "Missing ShowToolsForm.");
 
     M_ASSERT(
-        m_getGreenData != nullptr,
-        "Missing GetToolsGreenData");
+        m_closeForm != nullptr,
+        "Missing CloseToolsForm.");
 
     M_ASSERT(
-        m_getBlueData != nullptr,
-        "Missing GetToolsBlueData");
+        m_getMode != nullptr,
+        "Missing GetToolsMode.");
 
     M_ASSERT(
-        m_getSpecularPower != nullptr,
-        "Missing GetToolsSpecularPower. Update ToolsGUI.dll.");
+        m_resetLight != nullptr,
+        "Missing ConsumeResetLight.");
+
+    M_ASSERT(
+        m_resetCube != nullptr,
+        "Missing ConsumeResetCube.");
 
     M_ASSERT(
         m_getSpecularStrength != nullptr,
-        "Missing GetToolsSpecularStrength. Update ToolsGUI.dll.");
+        "Missing GetToolsSpecularStrength.");
+
+    M_ASSERT(
+        m_getSpecularRed != nullptr,
+        "Missing GetToolsSpecularRed.");
+
+    M_ASSERT(
+        m_getSpecularGreen != nullptr,
+        "Missing GetToolsSpecularGreen.");
+
+    M_ASSERT(
+        m_getSpecularBlue != nullptr,
+        "Missing GetToolsSpecularBlue.");
 }

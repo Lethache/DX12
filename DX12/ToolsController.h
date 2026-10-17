@@ -8,33 +8,34 @@ public:
     ToolsController();
     virtual ~ToolsController();
 
-    typedef void(__stdcall* ShowToolsForm)();
-    typedef bool(__stdcall* GetToolsBoolData)();
-    typedef float(__stdcall* GetToolsFloatData)();
+    void LoadToolsLibrary();
 
     void ShowForm() const
     {
         m_showForm();
     }
 
-    bool GetRedData() const
+    void CloseForm() const
     {
-        return m_getRedData();
+        if (m_closeForm != nullptr)
+        {
+            m_closeForm();
+        }
     }
 
-    bool GetGreenData() const
+    int GetMode() const
     {
-        return m_getGreenData();
+        return m_getMode();
     }
 
-    bool GetBlueData() const
+    bool ConsumeResetLight() const
     {
-        return m_getBlueData();
+        return m_resetLight();
     }
 
-    float GetSpecularPower() const
+    bool ConsumeResetCube() const
     {
-        return m_getSpecularPower();
+        return m_resetCube();
     }
 
     float GetSpecularStrength() const
@@ -42,17 +43,33 @@ public:
         return m_getSpecularStrength();
     }
 
-    void LoadToolsLibrary();
+    XMFLOAT4 GetSpecularColor() const
+    {
+        return XMFLOAT4(
+            m_getSpecularRed(),
+            m_getSpecularGreen(),
+            m_getSpecularBlue(),
+            1.0f);
+    }
 
 private:
+    typedef void(__stdcall* ToolsVoidFunction)();
+    typedef bool(__stdcall* ToolsBoolFunction)();
+    typedef int(__stdcall* ToolsIntFunction)();
+    typedef float(__stdcall* ToolsFloatFunction)();
+
     HMODULE m_module;
 
-    ShowToolsForm m_showForm;
+    ToolsVoidFunction m_showForm;
+    ToolsVoidFunction m_closeForm;
 
-    GetToolsBoolData m_getRedData;
-    GetToolsBoolData m_getGreenData;
-    GetToolsBoolData m_getBlueData;
+    ToolsIntFunction m_getMode;
 
-    GetToolsFloatData m_getSpecularPower;
-    GetToolsFloatData m_getSpecularStrength;
+    ToolsBoolFunction m_resetLight;
+    ToolsBoolFunction m_resetCube;
+
+    ToolsFloatFunction m_getSpecularStrength;
+    ToolsFloatFunction m_getSpecularRed;
+    ToolsFloatFunction m_getSpecularGreen;
+    ToolsFloatFunction m_getSpecularBlue;
 };
