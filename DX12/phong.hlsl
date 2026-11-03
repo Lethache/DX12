@@ -16,6 +16,10 @@ struct Light
     float Padding;
 
     float4 Color;
+
+    // X = constant, Y = linear, Z = quadratic.
+    float3 ConstLinQuad;
+    float Padding1;
 };
 
 cbuffer SceneData : register(b0)
@@ -79,7 +83,7 @@ PSInput VSMain(VSInput input)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    // Display the light source as a solid-colored cube.
+    // The light marker itself does not fade.
     if (IsLightCube != 0)
     {
         return material.DiffuseColor;
@@ -98,8 +102,12 @@ float4 PSMain(PSInput input) : SV_TARGET
 
     float3 normal = SafeNormalize(input.normal);
 
-    float3 lightDirection =
-        SafeNormalize(light.Position - input.worldPosition);
+    float3 lightOffset =
+        light.Position - input.worldPosition;
+
+    float distanceToLight = length(lightOffset);
+
+    float3 lightDirection = SafeNormalize(lightOffset);
 
     float3 viewDirection =
         SafeNormalize(CameraPosition.xyz - input.worldPosition);
@@ -119,14 +127,25 @@ float4 PSMain(PSInput input) : SV_TARGET
             max(material.SpecularPower, 1.0f));
     }
 
+    float attenuationDenominator =
+        light.ConstLinQuad.x
+        + light.ConstLinQuad.y * distanceToLight
+        + light.ConstLinQuad.z * distanceToLight * distanceToLight;
+
+    float attenuation =
+        1.0f / max(attenuationDenominator, 0.000001f);
+
     float3 baseColor =
         diffuseSample.rgb * material.DiffuseColor.rgb;
 
+    // Ambient remains visible even far from the point light.
     float3 ambient =
         baseColor * light.AmbientColor.rgb;
 
     float3 diffuse =
-        baseColor * light.Color.rgb * diffuseAmount;
+        baseColor
+        * light.Color.rgb
+        * diffuseAmount;
 
     float3 specular =
         specularSample
@@ -135,7 +154,11 @@ float4 PSMain(PSInput input) : SV_TARGET
         * material.SpecularStrength
         * specularAmount;
 
+    // Distance attenuation affects diffuse and specular lighting.
+    float3 finalColor =
+        ambient + (diffuse + specular) * attenuation;
+
     return float4(
-        saturate(ambient + diffuse + specular),
+        saturate(finalColor),
         diffuseSample.a * material.DiffuseColor.a);
 }

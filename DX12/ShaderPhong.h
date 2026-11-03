@@ -24,6 +24,9 @@ public:
         float Padding;
 
         XMFLOAT4 Color;
+
+        XMFLOAT3 ConstLinQuad;
+        float Padding1;
     };
 
     struct alignas(256) CB_Phong
@@ -81,6 +84,17 @@ public:
         m_parameters.light.Color = value;
     }
 
+    void SetAttenuation(
+        float constant,
+        float linear,
+        float quadratic)
+    {
+        m_parameters.light.ConstLinQuad = XMFLOAT3(
+            (std::max)(constant, 1.0f),
+            (std::max)(linear, 0.0f),
+            (std::max)(quadratic, 0.0f));
+    }
+
     void SetCameraPosition(XMFLOAT4 value)
     {
         m_parameters.CameraPosition = value;
@@ -113,8 +127,12 @@ static_assert(
     "Material layout must match HLSL.");
 
 static_assert(
-    sizeof(ShaderPhong::Light) == 48,
+    sizeof(ShaderPhong::Light) == 64,
     "Light layout must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::Light, ConstLinQuad) == 48,
+    "Attenuation offset must match HLSL.");
 
 static_assert(
     sizeof(ShaderPhong::CB_Phong) == 512,
@@ -129,13 +147,13 @@ static_assert(
     "Light offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 288,
+    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 304,
     "CameraPosition offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 304,
+    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 320,
     "IsLightCube offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 308,
+    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 324,
     "UseSpecularMap offset must match HLSL.");

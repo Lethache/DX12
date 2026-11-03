@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cwchar>
 #include <memory>
 #include <random>
 #include <vector>
@@ -95,16 +96,12 @@ void GameController::Initialize(
 
 void GameController::Run()
 {
-    // All 100 cubes share this shader.
     ShaderPhong cubeShader;
-
-    // The light marker uses a separate shader.
     ShaderPhong markerShader;
 
     cubeShader.Initialize();
     markerShader.Initialize();
 
-    // Load one texture pair for all 100 cubes.
     Texture diffuseTexture;
     Texture specularTexture;
 
@@ -116,8 +113,6 @@ void GameController::Run()
         SPECULAR_TEXTURE,
         &cubeShader);
 
-    // Fill the marker shader's texture descriptors too.
-    // Its pixel shader returns a solid color.
     Texture markerDiffuse;
     Texture markerSpecular;
 
@@ -146,7 +141,6 @@ void GameController::Run()
     for (int i = 0; i < CUBE_COUNT; ++i)
     {
         auto cube = std::make_unique<Unit>();
-
         cube->Initialize(&cubeShader);
 
         const int column = i % COLUMNS;
@@ -198,14 +192,20 @@ void GameController::Run()
     cubeShader.SetSpecularStrength(1.0f);
 
     cubeShader.SetAmbientLight(
-        XMFLOAT4(0.15f, 0.15f, 0.15f, 1.0f));
+        XMFLOAT4(0.12f, 0.12f, 0.12f, 1.0f));
 
     cubeShader.SetLightColor(
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 
-    cubeShader.SetUseSpecularMap(true);
+    float constant = 1.0f;
+    float linear = 0.09f;
+    float quadratic = 0.032f;
 
-    // Use a more distant camera for the larger scene.
+    bool specularMapEnabled = true;
+
+    cubeShader.SetAttenuation(constant, linear, quadratic);
+    cubeShader.SetUseSpecularMap(specularMapEnabled);
+
     const XMVECTOR cameraPosition =
         XMVectorSet(0.0f, 3.0f, -20.0f, 1.0f);
 
@@ -230,23 +230,30 @@ void GameController::Run()
         lightMarker,
         &cubeShader);
 
-    auto updateTitle = [&](bool mapEnabled)
+    auto updateTitle = [&]()
         {
-            SetWindowTextW(
-                m_windowC->GetHWND(),
-                mapEnabled
-                ? L"Week 8 Task 2 | 100 cubes | Specular map ON | "
-                L"Arrows: X/Y | Z/X: depth | R: reset | 1/2: map"
-                : L"Week 8 Task 2 | 100 cubes | Specular map OFF | "
-                L"Arrows: X/Y | Z/X: depth | R: reset | 1/2: map");
+            wchar_t title[256] = {};
+
+            swprintf_s(
+                title,
+                _countof(title),
+                L"Task 3 | Point Light | "
+                L"Kc %.2f  Kl %.3f  Kq %.3f | "
+                L"Map %ls | Q/A W/S E/D | 3/4/5: presets",
+                static_cast<double>(constant),
+                static_cast<double>(linear),
+                static_cast<double>(quadratic),
+                specularMapEnabled ? L"ON" : L"OFF");
+
+            SetWindowTextW(m_windowC->GetHWND(), title);
         };
 
-    bool specularMapEnabled = true;
-    updateTitle(specularMapEnabled);
+    updateTitle();
 
     using Clock = std::chrono::steady_clock;
     auto previousTime = Clock::now();
 
+    float titleTimer = 0.0f;
     bool running = true;
 
     while (running)
@@ -309,32 +316,71 @@ void GameController::Run()
         if (pressed('R'))
             lightPosition = LIGHT_START;
 
-        bool nextMapEnabled = specularMapEnabled;
-
         if (pressed('1'))
-            nextMapEnabled = false;
+            specularMapEnabled = false;
 
         if (pressed('2'))
-            nextMapEnabled = true;
+            specularMapEnabled = true;
 
-        if (nextMapEnabled != specularMapEnabled)
+        // Hold these keys to change individual coefficients.
+        constant +=
+            (float(pressed('Q')) - float(pressed('A')))
+            * 0.75f * deltaTime;
+
+        linear +=
+            (float(pressed('W')) - float(pressed('S')))
+            * 0.10f * deltaTime;
+
+        quadratic +=
+            (float(pressed('E')) - float(pressed('D')))
+            * 0.05f * deltaTime;
+
+        constant = (std::max)(constant, 1.0f);
+        linear = (std::max)(linear, 0.0f);
+        quadratic = (std::max)(quadratic, 0.0f);
+
+        // No distance attenuation.
+        if (pressed('3'))
         {
-            specularMapEnabled = nextMapEnabled;
+            constant = 1.0f;
+            linear = 0.0f;
+            quadratic = 0.0f;
+        }
 
-            cubeShader.SetUseSpecularMap(
-                specularMapEnabled);
+        // Default attenuation.
+        if (pressed('4'))
+        {
+            constant = 1.0f;
+            linear = 0.09f;
+            quadratic = 0.032f;
+        }
 
-            updateTitle(specularMapEnabled);
+        // Strong attenuation.
+        if (pressed('5'))
+        {
+            constant = 1.0f;
+            linear = 0.35f;
+            quadratic = 0.12f;
         }
 
         lightMarker.SetPosition(lightPosition);
+
         cubeShader.SetLightPosition(lightPosition);
+        cubeShader.SetUseSpecularMap(specularMapEnabled);
+        cubeShader.SetAttenuation(constant, linear, quadratic);
+
+        titleTimer += deltaTime;
+
+        if (titleTimer >= 0.15f)
+        {
+            updateTitle();
+            titleTimer = 0.0f;
+        }
 
         m_renderer->Render(
             &scene,
             view * m_camera->GetProjection());
     }
 
-    // Finish GPU work before destroying meshes and textures.
     m_renderer->WaitForPreviousFrame();
 }

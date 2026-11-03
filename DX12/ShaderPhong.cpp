@@ -38,6 +38,8 @@ ShaderPhong::ShaderPhong()
     SetLightColor(
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
 
+    SetAttenuation(1.0f, 0.09f, 0.032f);
+
     SetIsLightCube(false);
     SetUseSpecularMap(true);
 }
@@ -88,5 +90,5 @@ void ShaderPhong::SetPipelineState()
         &m_parameters,
         sizeof(m_parameters));
 
-    // Mesh::Render writes WVP into this same slot afterward.
+    // Mesh::Render writes WVP into this same object slot afterward.
 }
