@@ -6,7 +6,25 @@
 class ShaderPhong : public Shader
 {
 public:
-    ShaderPhong();
+    struct Material
+    {
+        XMFLOAT4 DiffuseColor;
+        XMFLOAT4 SpecularColor;
+
+        float SpecularPower;
+        float SpecularStrength;
+        XMFLOAT2 Padding;
+    };
+
+    struct Light
+    {
+        XMFLOAT4 AmbientColor;
+
+        XMFLOAT3 Position;
+        float Padding;
+
+        XMFLOAT4 Color;
+    };
 
     struct alignas(256) CB_Phong
     {
@@ -14,35 +32,69 @@ public:
         XMFLOAT4X4 World;
         XMFLOAT4X4 NormalMatrix;
 
-        XMFLOAT4 DiffuseColor;
-        XMFLOAT4 AmbientLight;
+        Material material;
+        Light light;
 
-        XMFLOAT3 LightPosition;
-        float pad0;
-
-        XMFLOAT4 LightColor;
-
-        float SpecularPower;
-        float SpecularStrength;
-        UINT IsLightCube;
-        UINT ColorByPosition;
-
-        XMFLOAT4 SpecularColor;
         XMFLOAT4 CameraPosition;
+
+        UINT IsLightCube;
+        UINT UseSpecularMap;
+        XMFLOAT2 ScenePadding;
     };
 
-    void SetDiffuseColor(XMFLOAT4 value);
-    void SetAmbientLight(XMFLOAT4 value);
-    void SetLightPosition(XMFLOAT3 value);
-    void SetLightColor(XMFLOAT4 value);
+    ShaderPhong();
 
-    void SetSpecularPower(float value);
-    void SetSpecularStrength(float value);
-    void SetSpecularColor(XMFLOAT4 value);
-    void SetCameraPosition(XMFLOAT4 value);
+    void SetDiffuseColor(XMFLOAT4 value)
+    {
+        m_parameters.material.DiffuseColor = value;
+    }
 
-    void SetIsLightCube(bool value);
-    void SetColorByPosition(bool value);
+    void SetSpecularColor(XMFLOAT4 value)
+    {
+        m_parameters.material.SpecularColor = value;
+    }
+
+    void SetSpecularPower(float value)
+    {
+        m_parameters.material.SpecularPower =
+            (std::max)(value, 1.0f);
+    }
+
+    void SetSpecularStrength(float value)
+    {
+        m_parameters.material.SpecularStrength =
+            (std::max)(value, 0.0f);
+    }
+
+    void SetAmbientLight(XMFLOAT4 value)
+    {
+        m_parameters.light.AmbientColor = value;
+    }
+
+    void SetLightPosition(XMFLOAT3 value)
+    {
+        m_parameters.light.Position = value;
+    }
+
+    void SetLightColor(XMFLOAT4 value)
+    {
+        m_parameters.light.Color = value;
+    }
+
+    void SetCameraPosition(XMFLOAT4 value)
+    {
+        m_parameters.CameraPosition = value;
+    }
+
+    void SetIsLightCube(bool value)
+    {
+        m_parameters.IsLightCube = value ? 1U : 0U;
+    }
+
+    void SetUseSpecularMap(bool value)
+    {
+        m_parameters.UseSpecularMap = value ? 1U : 0U;
+    }
 
     void SetWorldMatrix(XMMATRIX world);
 
@@ -57,21 +109,33 @@ private:
 };
 
 static_assert(
+    sizeof(ShaderPhong::Material) == 48,
+    "Material layout must match HLSL.");
+
+static_assert(
+    sizeof(ShaderPhong::Light) == 48,
+    "Light layout must match HLSL.");
+
+static_assert(
     sizeof(ShaderPhong::CB_Phong) == 512,
-    "CB_Phong must use a 512-byte frame stride.");
+    "CB_Phong must have a 512-byte stride.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, DiffuseColor) == 192,
-    "DiffuseColor offset must match HLSL.");
+    offsetof(ShaderPhong::CB_Phong, material) == 192,
+    "Material offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, SpecularPower) == 256,
-    "SpecularPower offset must match HLSL.");
-
-static_assert(
-    offsetof(ShaderPhong::CB_Phong, ColorByPosition) == 268,
-    "ColorByPosition offset must match HLSL.");
+    offsetof(ShaderPhong::CB_Phong, light) == 240,
+    "Light offset must match HLSL.");
 
 static_assert(
     offsetof(ShaderPhong::CB_Phong, CameraPosition) == 288,
     "CameraPosition offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 304,
+    "IsLightCube offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 308,
+    "UseSpecularMap offset must match HLSL.");

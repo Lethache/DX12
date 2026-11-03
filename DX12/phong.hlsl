@@ -1,25 +1,43 @@
+struct Material
+{
+    float4 DiffuseColor;
+    float4 SpecularColor;
+
+    float SpecularPower;
+    float SpecularStrength;
+    float2 Padding;
+};
+
+struct Light
+{
+    float4 AmbientColor;
+
+    float3 Position;
+    float Padding;
+
+    float4 Color;
+};
+
 cbuffer SceneData : register(b0)
 {
     float4x4 WVP;
     float4x4 World;
     float4x4 NormalMatrix;
 
-    float4 DiffuseColor;
-    float4 AmbientLight;
+    Material material;
+    Light light;
 
-    float3 LightPosition;
-    float pad0;
-
-    float4 LightColor;
-
-    float SpecularPower;
-    float SpecularStrength;
-    uint IsLightCube;
-    uint ColorByPosition;
-
-    float4 SpecularColor;
     float4 CameraPosition;
+
+    uint IsLightCube;
+    uint UseSpecularMap;
+    float2 ScenePadding;
 };
+
+Texture2D g_diffuse : register(t0);
+Texture2D g_specular : register(t1);
+
+SamplerState g_sampler : register(s0);
 
 struct VSInput
 {
@@ -36,131 +54,88 @@ struct PSInput
     float3 worldPosition : TEXCOORD1;
 };
 
-Texture2D g_diffuse : register(t0);
-Texture2D g_secondTexture : register(t1);
-
-SamplerState g_sampler : register(s0);
+float3 SafeNormalize(float3 value)
+{
+    return value * rsqrt(max(dot(value, value), 0.000001f));
+}
 
 PSInput VSMain(VSInput input)
 {
-    PSInput result;
+    PSInput output;
 
-    result.position =
+    output.position =
         mul(float4(input.position, 1.0f), WVP);
 
-    result.worldPosition =
+    output.worldPosition =
         mul(float4(input.position, 1.0f), World).xyz;
 
-    result.normal =
+    output.normal =
         mul(float4(input.normal, 0.0f), NormalMatrix).xyz;
 
-    result.uv = input.uv;
+    output.uv = input.uv;
 
-    return result;
+    return output;
 }
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    // Solid color for the red light marker.
+    // Display the light source as a solid-colored cube.
     if (IsLightCube != 0)
     {
-        return DiffuseColor;
+        return material.DiffuseColor;
     }
 
-    float4 textureColor =
+    float4 diffuseSample =
         g_diffuse.Sample(g_sampler, input.uv);
 
-    // Used by the textured cube in both movement modes.
-    if (ColorByPosition != 0)
+    float3 specularSample = float3(1.0f, 1.0f, 1.0f);
+
+    if (UseSpecularMap != 0)
     {
-        float4 secondTextureColor =
-            g_secondTexture.Sample(g_sampler, input.uv);
-
-        float3 combinedTexture = lerp(
-            textureColor.rgb,
-            secondTextureColor.rgb,
-            0.5f);
-
-        // World-space position of the cube's center.
-        float3 cubePosition =
-            mul(float4(0.0f, 0.0f, 0.0f, 1.0f), World).xyz;
-
-        float3 neutralPosition =
-            float3(0.0f, 0.0f, 0.0f);
-
-        // Positive and negative movement use the same colors.
-        float3 distanceByAxis =
-            abs(cubePosition - neutralPosition);
-
-        float largestDistance = max(
-            distanceByAxis.x,
-            max(distanceByAxis.y, distanceByAxis.z));
-
-        // X -> red, Y -> green, Z -> blue.
-        // Movement along multiple axes mixes the colors.
-        float3 axisColor =
-            distanceByAxis / max(largestDistance, 0.000001f);
-
-        // Keep original texture colors at the center.
-        // Increase the tint smoothly away from the center.
-        float tintStrength =
-    0.65f * smoothstep(0.0f, 3.0f, largestDistance);
-
-        float3 tint = lerp(
-            float3(1.0f, 1.0f, 1.0f),
-            axisColor,
-            tintStrength);
-
-        return float4(combinedTexture * tint, 1.0f);
+        specularSample =
+            g_specular.Sample(g_sampler, input.uv).rgb;
     }
 
-    // Phong lighting for the wooden cube.
-    float3 normal = normalize(input.normal);
-
-    float3 lightOffset =
-        LightPosition - input.worldPosition;
+    float3 normal = SafeNormalize(input.normal);
 
     float3 lightDirection =
-        lightOffset * rsqrt(
-            max(dot(lightOffset, lightOffset), 0.000001f));
-
-    float3 viewOffset =
-        CameraPosition.xyz - input.worldPosition;
+        SafeNormalize(light.Position - input.worldPosition);
 
     float3 viewDirection =
-        viewOffset * rsqrt(
-            max(dot(viewOffset, viewOffset), 0.000001f));
+        SafeNormalize(CameraPosition.xyz - input.worldPosition);
 
     float diffuseAmount =
         saturate(dot(normal, lightDirection));
-
-    float3 reflection =
-        reflect(-lightDirection, normal);
 
     float specularAmount = 0.0f;
 
     if (diffuseAmount > 0.0f)
     {
+        float3 reflectedDirection =
+            reflect(-lightDirection, normal);
+
         specularAmount = pow(
-            saturate(dot(reflection, viewDirection)),
-            max(SpecularPower, 1.0f));
+            saturate(dot(reflectedDirection, viewDirection)),
+            max(material.SpecularPower, 1.0f));
     }
 
+    float3 baseColor =
+        diffuseSample.rgb * material.DiffuseColor.rgb;
+
+    float3 ambient =
+        baseColor * light.AmbientColor.rgb;
+
     float3 diffuse =
-        textureColor.rgb
-        * DiffuseColor.rgb
-        * (
-            AmbientLight.rgb
-            + LightColor.rgb * diffuseAmount
-        );
+        baseColor * light.Color.rgb * diffuseAmount;
 
     float3 specular =
-        SpecularColor.rgb
-        * LightColor.rgb
-        * SpecularStrength
+        specularSample
+        * material.SpecularColor.rgb
+        * light.Color.rgb
+        * material.SpecularStrength
         * specularAmount;
 
     return float4(
-        saturate(diffuse + specular),
-        textureColor.a * DiffuseColor.a);
+        saturate(ambient + diffuse + specular),
+        diffuseSample.a * material.DiffuseColor.a);
 }
