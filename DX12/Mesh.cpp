@@ -1,46 +1,29 @@
 #include "Mesh.h"
 #include "Shader.h"
-#include "Texture.h"
 #include "Renderer.h"
 #include "CommandController.h"
 
 Mesh::Mesh()
 {
+    m_objectIndex = 0;
     m_vertexBufferView = {};
 }
 
 Mesh::~Mesh()
 {
-    delete GetTexDiffuse();
-    SetTexDiffuse(nullptr);
-
-    delete GetTexture1();
-    SetTexture1(nullptr);
+    // Shared textures are owned by GameController::Run.
 }
 
-void Mesh::Initialize(
-    Shader* shader,
-    const wchar_t* texturePath,
-    const wchar_t* secondTexturePath)
+void Mesh::Initialize(Shader* shader)
 {
+    M_ASSERT(shader != nullptr, "Mesh requires a shader.");
+
     SetShader(shader);
+
+    // Unique index among objects using this shader.
+    m_objectIndex = shader->RegisterObject();
+
     CreateVertexBuffer();
-
-    Texture* texture0 = new Texture();
-
-    texture0->Initialize(
-        texturePath,
-        shader);
-
-    SetTexDiffuse(texture0);
-
-    Texture* texture1 = new Texture();
-
-    texture1->Initialize(
-        secondTexturePath,
-        shader);
-
-    SetTexture1(texture1);
 }
 
 void Mesh::CreateVertexBuffer()
@@ -144,26 +127,24 @@ void Mesh::CreateVertexBuffer()
 
 void Mesh::Render(XMMATRIX viewProj)
 {
-    GetShader()->SetPipelineState();
+    auto* shader = GetShader();
 
-    auto renderer = &Renderer::GetInstance();
+    shader->SetCurrentObjectIndex(m_objectIndex);
+    shader->SetPipelineState();
 
-    auto commandList =
-        renderer->GetCommands()->GetCommandList();
-
-    unsigned char* base =
-        reinterpret_cast<unsigned char*>(
-            GetShader()->GetConstantData());
-
-    ConstantBuffer* constantData =
+    // ShaderPhong has already written material, light and world data.
+    // Write WVP into the same object's slot.
+    auto* constantData =
         reinterpret_cast<ConstantBuffer*>(
-            base +
-            renderer->GetFrameIndex() *
-            GetShader()->GetConstantBufferSize());
+            shader->ConstantBufferAddress());
 
     XMStoreFloat4x4(
         &constantData->WVP,
         XMMatrixTranspose(viewProj));
+
+    auto commandList =
+        Renderer::GetInstance()
+        .GetCommands()->GetCommandList();
 
     commandList->IASetPrimitiveTopology(
         D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);

@@ -7,6 +7,9 @@ Shader::Shader()
     m_constantData = nullptr;
     m_constantBufferSize = sizeof(ConstantBuffer);
 
+    m_nextObjectIndex = 0;
+    m_currentObjectIndex = 0;
+
     m_srvIndex = 0;
     m_shaderFile = L"shaders.hlsl";
 
@@ -31,9 +34,45 @@ void Shader::Initialize()
     CreateConstantBuffer(sizeof(ConstantBuffer));
 }
 
+UINT Shader::RegisterObject()
+{
+    M_ASSERT(
+        m_nextObjectIndex < MAX_OBJECTS,
+        "Too many objects registered with this shader.");
+
+    return m_nextObjectIndex++;
+}
+
+void Shader::SetCurrentObjectIndex(UINT index)
+{
+    M_ASSERT(
+        index < m_nextObjectIndex,
+        "Invalid shader object index.");
+
+    m_currentObjectIndex = index;
+}
+
+UINT64 Shader::ConstantBufferOffset() const
+{
+    const UINT64 frameIndex =
+        Renderer::GetInstance().GetFrameIndex();
+
+    return
+        (frameIndex * MAX_OBJECTS + m_currentObjectIndex)
+        * m_constantBufferSize;
+}
+
+unsigned char* Shader::ConstantBufferAddress() const
+{
+    return
+        reinterpret_cast<unsigned char*>(m_constantData)
+        + ConstantBufferOffset();
+}
+
 unsigned int Shader::NextSRVIndex()
 {
-    M_ASSERT(m_srvIndex < 2,
+    M_ASSERT(
+        m_srvIndex < 2,
         "This shader supports only two textures.");
 
     return ++m_srvIndex;
@@ -60,7 +99,8 @@ void Shader::CompileShaders()
         m_vertexShader.GetAddressOf(),
         error.GetAddressOf());
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         error
         ? static_cast<const char*>(error->GetBufferPointer())
         : "Failed to compile vertex shader.");
@@ -78,7 +118,8 @@ void Shader::CompileShaders()
         m_pixelShader.GetAddressOf(),
         error.GetAddressOf());
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         error
         ? static_cast<const char*>(error->GetBufferPointer())
         : "Failed to compile pixel shader.");
@@ -103,7 +144,6 @@ void Shader::CreateRootSignature()
     D3D12_STATIC_SAMPLER_DESC sampler = {};
 
     sampler.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
-
     sampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     sampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     sampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -137,7 +177,8 @@ void Shader::CreateRootSignature()
         signature.GetAddressOf(),
         error.GetAddressOf());
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         error
         ? static_cast<const char*>(error->GetBufferPointer())
         : "Failed to serialize root signature.");
@@ -148,7 +189,8 @@ void Shader::CreateRootSignature()
         signature->GetBufferSize(),
         IID_PPV_ARGS(m_rootSignature.GetAddressOf()));
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to create root signature.");
 }
 
@@ -188,12 +230,15 @@ void Shader::CreatePipelineState()
         CD3DX12_DEPTH_STENCIL_DESC(D3D12_DEFAULT);
 
     desc.DepthStencilState.DepthEnable = TRUE;
-    desc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
-    desc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_LESS;
+    desc.DepthStencilState.DepthWriteMask =
+        D3D12_DEPTH_WRITE_MASK_ALL;
+
+    desc.DepthStencilState.DepthFunc =
+        D3D12_COMPARISON_FUNC_LESS;
+
     desc.DepthStencilState.StencilEnable = FALSE;
 
     desc.DSVFormat = DXGI_FORMAT_D32_FLOAT;
-
     desc.SampleMask = UINT_MAX;
 
     desc.PrimitiveTopologyType =
@@ -207,24 +252,30 @@ void Shader::CreatePipelineState()
         &desc,
         IID_PPV_ARGS(m_pipelineState.GetAddressOf()));
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to create pipeline state.");
 }
 
 void Shader::CreateConstantBuffer(UINT64 bufferSize)
 {
-    auto renderer = &Renderer::GetInstance();
-    auto device = renderer->GetDevice();
+    auto& renderer = Renderer::GetInstance();
+    auto device = renderer.GetDevice();
 
     SetConstantBufferSize(bufferSize);
 
     const UINT64 elementSize = GetConstantBufferSize();
-    const UINT64 totalSize = elementSize * renderer->GetFrameCount();
+
+    // Every frame has a separate region.
+    // Every object has a separate slot inside that region.
+    const UINT64 totalSize =
+        elementSize * MAX_OBJECTS * renderer.GetFrameCount();
 
     CD3DX12_HEAP_PROPERTIES heapProperties(
         D3D12_HEAP_TYPE_UPLOAD);
 
-    auto bufferDesc = CD3DX12_RESOURCE_DESC::Buffer(totalSize);
+    auto bufferDesc =
+        CD3DX12_RESOURCE_DESC::Buffer(totalSize);
 
     HRESULT result = device->CreateCommittedResource(
         &heapProperties,
@@ -234,7 +285,8 @@ void Shader::CreateConstantBuffer(UINT64 bufferSize)
         nullptr,
         IID_PPV_ARGS(m_constantBuffer.GetAddressOf()));
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to create constant buffer.");
 
     D3D12_DESCRIPTOR_HEAP_DESC heapDesc = {};
@@ -246,12 +298,14 @@ void Shader::CreateConstantBuffer(UINT64 bufferSize)
         &heapDesc,
         IID_PPV_ARGS(m_descrHeap.GetAddressOf()));
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to create descriptor heap.");
 
     D3D12_CONSTANT_BUFFER_VIEW_DESC cbvDesc = {};
+    cbvDesc.BufferLocation =
+        m_constantBuffer->GetGPUVirtualAddress();
 
-    cbvDesc.BufferLocation = m_constantBuffer->GetGPUVirtualAddress();
     cbvDesc.SizeInBytes = static_cast<UINT>(elementSize);
 
     device->CreateConstantBufferView(
@@ -265,7 +319,8 @@ void Shader::CreateConstantBuffer(UINT64 bufferSize)
         &readRange,
         reinterpret_cast<void**>(&m_constantData));
 
-    M_ASSERT(SUCCEEDED(result),
+    M_ASSERT(
+        SUCCEEDED(result),
         "Failed to map constant buffer.");
 
     memset(m_constantData, 0, static_cast<size_t>(totalSize));
@@ -273,8 +328,8 @@ void Shader::CreateConstantBuffer(UINT64 bufferSize)
 
 void Shader::SetPipelineState()
 {
-    auto renderer = &Renderer::GetInstance();
-    auto commandList = renderer->GetCommands()->GetCommandList();
+    auto& renderer = Renderer::GetInstance();
+    auto commandList = renderer.GetCommands()->GetCommandList();
 
     commandList->SetPipelineState(m_pipelineState.Get());
     commandList->SetGraphicsRootSignature(m_rootSignature.Get());
@@ -286,13 +341,14 @@ void Shader::SetPipelineState()
 
     commandList->SetDescriptorHeaps(_countof(heaps), heaps);
 
+    // Bind the current object's slot for the current frame.
     commandList->SetGraphicsRootConstantBufferView(
         0,
-        m_constantBuffer->GetGPUVirtualAddress() +
-        renderer->GetFrameIndex() * GetConstantBufferSize());
+        m_constantBuffer->GetGPUVirtualAddress()
+        + ConstantBufferOffset());
 
     const UINT descriptorSize =
-        renderer->GetDevice()->GetDescriptorHandleIncrementSize(
+        renderer.GetDevice()->GetDescriptorHandleIncrementSize(
             D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     CD3DX12_GPU_DESCRIPTOR_HANDLE srvHandle(

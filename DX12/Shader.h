@@ -11,6 +11,8 @@ struct alignas(256) ConstantBuffer
 class Shader
 {
 public:
+    static constexpr UINT MAX_OBJECTS = 256;
+
     Shader();
     virtual ~Shader();
 
@@ -60,6 +62,13 @@ public:
         return m_constantBufferSize;
     }
 
+    UINT RegisterObject();
+
+    void SetCurrentObjectIndex(UINT index);
+
+    UINT64 ConstantBufferOffset() const;
+    unsigned char* ConstantBufferAddress() const;
+
     void Initialize();
     virtual void SetPipelineState();
 
@@ -84,6 +93,9 @@ private:
 
     ConstantBuffer* m_constantData;
     UINT64 m_constantBufferSize;
+
+    UINT m_nextObjectIndex;
+    UINT m_currentObjectIndex;
 
     unsigned int m_srvIndex;
 

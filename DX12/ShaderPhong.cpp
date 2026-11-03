@@ -1,5 +1,4 @@
 #include "ShaderPhong.h"
-#include "Renderer.h"
 
 #include <cstring>
 
@@ -34,7 +33,7 @@ ShaderPhong::ShaderPhong()
         XMFLOAT4(0.12f, 0.12f, 0.12f, 1.0f));
 
     SetLightPosition(
-        XMFLOAT3(0.8f, 0.5f, -1.5f));
+        XMFLOAT3(0.0f, 3.0f, -3.0f));
 
     SetLightColor(
         XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
@@ -84,20 +83,10 @@ void ShaderPhong::SetPipelineState()
 {
     Shader::SetPipelineState();
 
-    auto& renderer = Renderer::GetInstance();
-
-    auto* base = reinterpret_cast<unsigned char*>(
-        GetConstantData());
-
-    auto* destination =
-        base
-        + renderer.GetFrameIndex()
-        * GetConstantBufferSize();
-
     std::memcpy(
-        destination,
+        ConstantBufferAddress(),
         &m_parameters,
         sizeof(m_parameters));
 
-    // Mesh::Render writes the current WVP immediately afterward.
+    // Mesh::Render writes WVP into this same slot afterward.
 }
