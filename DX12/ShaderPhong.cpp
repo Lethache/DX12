@@ -29,46 +29,9 @@ ShaderPhong::ShaderPhong()
     SetSpecularPower(32.0f);
     SetSpecularStrength(1.0f);
 
-    SetAmbientLight(
-        XMFLOAT4(0.12f, 0.12f, 0.12f, 1.0f));
-
-    SetLightPosition(
-        XMFLOAT3(0.0f, 2.0f, -6.0f));
-
-    SetLightColor(
-        XMFLOAT4(1.0f, 1.0f, 1.0f, 1.0f));
-
-    SetAttenuation(1.0f, 0.09f, 0.032f);
-
-    SetSpotDirection(
-        XMFLOAT3(0.0f, -0.25f, 1.0f));
-
-    SetSpotConeAngle(25.0f);
-    SetSpotFalloff(32.0f);
-
+    SetLightCount(0);
     SetIsLightCube(false);
     SetUseSpecularMap(true);
-}
-
-void ShaderPhong::SetSpotDirection(XMFLOAT3 value)
-{
-    XMVECTOR direction = XMLoadFloat3(&value);
-
-    const float lengthSquared =
-        XMVectorGetX(XMVector3LengthSq(direction));
-
-    if (lengthSquared < 0.000001f)
-    {
-        direction = XMVectorSet(0.0f, 0.0f, 1.0f, 0.0f);
-    }
-    else
-    {
-        direction = XMVector3Normalize(direction);
-    }
-
-    XMStoreFloat3(
-        &m_parameters.light.SpotDirection,
-        direction);
 }
 
 void ShaderPhong::SetWorldMatrix(XMMATRIX world)
@@ -117,5 +80,5 @@ void ShaderPhong::SetPipelineState()
         &m_parameters,
         sizeof(m_parameters));
 
-    // Mesh::Render writes WVP into the same object slot afterward.
+    // Mesh::Render writes WVP into this same object slot afterward.
 }

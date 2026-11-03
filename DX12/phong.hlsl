@@ -1,3 +1,5 @@
+#define MAX_LIGHTS 8
+
 struct Material
 {
     float4 DiffuseColor;
@@ -20,7 +22,6 @@ struct Light
     float3 ConstLinQuad;
     float Padding1;
 
-    // Direction from the light source toward the scene.
     float3 SpotDirection;
     float Padding2;
 
@@ -37,13 +38,15 @@ cbuffer SceneData : register(b0)
     float4x4 NormalMatrix;
 
     Material material;
-    Light light;
+
+    Light Lights[MAX_LIGHTS];
 
     float4 CameraPosition;
 
+    uint LightCount;
     uint IsLightCube;
     uint UseSpecularMap;
-    float2 ScenePadding;
+    float ScenePadding;
 };
 
 Texture2D g_diffuse : register(t0);
@@ -89,71 +92,55 @@ PSInput VSMain(VSInput input)
     return output;
 }
 
-float4 PSMain(PSInput input) : SV_TARGET
+float3 CalculateLight(
+    Light source,
+    float3 worldPosition,
+    float3 normal,
+    float3 viewDirection,
+    float3 baseColor,
+    float3 specularSample)
 {
-    if (IsLightCube != 0)
-    {
-        return material.DiffuseColor;
-    }
-
-    float4 diffuseSample =
-        g_diffuse.Sample(g_sampler, input.uv);
-
-    float3 baseColor =
-        diffuseSample.rgb * material.DiffuseColor.rgb;
-
     float3 ambient =
-        baseColor * light.AmbientColor.rgb;
+        baseColor * source.AmbientColor.rgb;
 
-    float alpha =
-        diffuseSample.a * material.DiffuseColor.a;
-
-    // Direction from the surface toward the light source.
     float3 lightOffset =
-        light.Position - input.worldPosition;
+        source.Position - worldPosition;
 
     float distanceToLight = length(lightOffset);
 
     float3 lightDirection =
         SafeNormalize(lightOffset);
 
-    // Spotlight direction points outward from the light.
     float3 spotDirection =
-        SafeNormalize(light.SpotDirection);
+        SafeNormalize(source.SpotDirection);
 
     float cosTheta =
         dot(spotDirection, -lightDirection);
 
     float cosCutoff =
-        cos(light.SpotConeFalloff.x);
+        cos(source.SpotConeFalloff.x);
 
-    // Outside the cone: ambient lighting only.
+    // Outside this light's cone.
     if (cosTheta <= cosCutoff)
     {
-        return float4(saturate(ambient), alpha);
+        return ambient;
     }
 
-    // Smooth cone falloff, following the slide formula.
     float ratio = saturate(
         cosCutoff / max(cosTheta, 0.000001f));
 
     float spotFactor =
         1.0f - pow(
             ratio,
-            max(light.SpotConeFalloff.y, 1.0f));
+            max(source.SpotConeFalloff.y, 1.0f));
 
-    float attenuationDenominator =
-        light.ConstLinQuad.x
-        + light.ConstLinQuad.y * distanceToLight
-        + light.ConstLinQuad.z * distanceToLight * distanceToLight;
+    float denominator =
+        source.ConstLinQuad.x
+        + source.ConstLinQuad.y * distanceToLight
+        + source.ConstLinQuad.z * distanceToLight * distanceToLight;
 
     float distanceFactor =
-        1.0f / max(attenuationDenominator, 0.000001f);
-
-    float3 normal = SafeNormalize(input.normal);
-
-    float3 viewDirection =
-        SafeNormalize(CameraPosition.xyz - input.worldPosition);
+        1.0f / max(denominator, 0.000001f);
 
     float diffuseAmount =
         saturate(dot(normal, lightDirection));
@@ -170,6 +157,32 @@ float4 PSMain(PSInput input) : SV_TARGET
             max(material.SpecularPower, 1.0f));
     }
 
+    float3 diffuse =
+        baseColor
+        * source.Color.rgb
+        * diffuseAmount;
+
+    float3 specular =
+        specularSample
+        * material.SpecularColor.rgb
+        * source.Color.rgb
+        * material.SpecularStrength
+        * specularAmount;
+
+    return ambient
+        + (diffuse + specular) * distanceFactor * spotFactor;
+}
+
+float4 PSMain(PSInput input) : SV_TARGET
+{
+    if (IsLightCube != 0)
+    {
+        return material.DiffuseColor;
+    }
+
+    float4 diffuseSample =
+        g_diffuse.Sample(g_sampler, input.uv);
+
     float3 specularSample = float3(1.0f, 1.0f, 1.0f);
 
     if (UseSpecularMap != 0)
@@ -178,21 +191,33 @@ float4 PSMain(PSInput input) : SV_TARGET
             g_specular.Sample(g_sampler, input.uv).rgb;
     }
 
-    float3 diffuse =
-        baseColor
-        * light.Color.rgb
-        * diffuseAmount;
+    float3 baseColor =
+        diffuseSample.rgb * material.DiffuseColor.rgb;
 
-    float3 specular =
-        specularSample
-        * material.SpecularColor.rgb
-        * light.Color.rgb
-        * material.SpecularStrength
-        * specularAmount;
+    float3 normal =
+        SafeNormalize(input.normal);
 
-    float3 finalColor =
-        ambient
-        + (diffuse + specular) * distanceFactor * spotFactor;
+    float3 viewDirection =
+        SafeNormalize(CameraPosition.xyz - input.worldPosition);
 
-    return float4(saturate(finalColor), alpha);
+    float3 finalColor = float3(0.0f, 0.0f, 0.0f);
+
+    uint count = min(LightCount, (uint)MAX_LIGHTS);
+
+    // Add the contribution of every active light.
+    [loop]
+    for (uint i = 0; i < count; ++i)
+    {
+        finalColor += CalculateLight(
+            Lights[i],
+            input.worldPosition,
+            normal,
+            viewDirection,
+            baseColor,
+            specularSample);
+    }
+
+    return float4(
+        saturate(finalColor),
+        diffuseSample.a * material.DiffuseColor.a);
 }

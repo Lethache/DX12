@@ -6,6 +6,8 @@
 class ShaderPhong : public Shader
 {
 public:
+    static constexpr UINT MAX_LIGHTS = 8;
+
     struct Material
     {
         XMFLOAT4 DiffuseColor;
@@ -42,13 +44,15 @@ public:
         XMFLOAT4X4 NormalMatrix;
 
         Material material;
-        Light light;
+
+        Light Lights[MAX_LIGHTS];
 
         XMFLOAT4 CameraPosition;
 
+        UINT LightCount;
         UINT IsLightCube;
         UINT UseSpecularMap;
-        XMFLOAT2 ScenePadding;
+        float ScenePadding;
     };
 
     ShaderPhong();
@@ -75,47 +79,19 @@ public:
             (std::max)(value, 0.0f);
     }
 
-    void SetAmbientLight(XMFLOAT4 value)
+    void SetLightCount(UINT count)
     {
-        m_parameters.light.AmbientColor = value;
+        m_parameters.LightCount =
+            (std::min)(count, MAX_LIGHTS);
     }
 
-    void SetLightPosition(XMFLOAT3 value)
+    void SetLight(UINT index, const Light& value)
     {
-        m_parameters.light.Position = value;
-    }
+        M_ASSERT(
+            index < MAX_LIGHTS,
+            "Light index exceeds MAX_LIGHTS.");
 
-    void SetLightColor(XMFLOAT4 value)
-    {
-        m_parameters.light.Color = value;
-    }
-
-    void SetAttenuation(
-        float constant,
-        float linear,
-        float quadratic)
-    {
-        m_parameters.light.ConstLinQuad = XMFLOAT3(
-            (std::max)(constant, 1.0f),
-            (std::max)(linear, 0.0f),
-            (std::max)(quadratic, 0.0f));
-    }
-
-    void SetSpotDirection(XMFLOAT3 value);
-
-    void SetSpotConeAngle(float degrees)
-    {
-        const float clampedDegrees =
-            (std::clamp)(degrees, 5.0f, 80.0f);
-
-        m_parameters.light.SpotConeFalloff.x =
-            XMConvertToRadians(clampedDegrees);
-    }
-
-    void SetSpotFalloff(float value)
-    {
-        m_parameters.light.SpotConeFalloff.y =
-            (std::clamp)(value, 1.0f, 256.0f);
+        m_parameters.Lights[index] = value;
     }
 
     void SetCameraPosition(XMFLOAT4 value)
@@ -166,25 +142,29 @@ static_assert(
     "SpotConeFalloff offset must match HLSL.");
 
 static_assert(
-    sizeof(ShaderPhong::CB_Phong) == 512,
-    "CB_Phong must have a 512-byte stride.");
+    sizeof(ShaderPhong::CB_Phong) == 1280,
+    "CB_Phong must have a 1280-byte stride.");
 
 static_assert(
     offsetof(ShaderPhong::CB_Phong, material) == 192,
     "Material offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, light) == 240,
-    "Light offset must match HLSL.");
+    offsetof(ShaderPhong::CB_Phong, Lights) == 240,
+    "Lights offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 336,
+    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 1008,
     "CameraPosition offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 352,
+    offsetof(ShaderPhong::CB_Phong, LightCount) == 1024,
+    "LightCount offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 1028,
     "IsLightCube offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 356,
+    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 1032,
     "UseSpecularMap offset must match HLSL.");
