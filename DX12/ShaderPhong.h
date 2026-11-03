@@ -27,6 +27,12 @@ public:
 
         XMFLOAT3 ConstLinQuad;
         float Padding1;
+
+        XMFLOAT3 SpotDirection;
+        float Padding2;
+
+        XMFLOAT2 SpotConeFalloff;
+        XMFLOAT2 Padding3;
     };
 
     struct alignas(256) CB_Phong
@@ -95,6 +101,23 @@ public:
             (std::max)(quadratic, 0.0f));
     }
 
+    void SetSpotDirection(XMFLOAT3 value);
+
+    void SetSpotConeAngle(float degrees)
+    {
+        const float clampedDegrees =
+            (std::clamp)(degrees, 5.0f, 80.0f);
+
+        m_parameters.light.SpotConeFalloff.x =
+            XMConvertToRadians(clampedDegrees);
+    }
+
+    void SetSpotFalloff(float value)
+    {
+        m_parameters.light.SpotConeFalloff.y =
+            (std::clamp)(value, 1.0f, 256.0f);
+    }
+
     void SetCameraPosition(XMFLOAT4 value)
     {
         m_parameters.CameraPosition = value;
@@ -127,12 +150,20 @@ static_assert(
     "Material layout must match HLSL.");
 
 static_assert(
-    sizeof(ShaderPhong::Light) == 64,
+    sizeof(ShaderPhong::Light) == 96,
     "Light layout must match HLSL.");
 
 static_assert(
     offsetof(ShaderPhong::Light, ConstLinQuad) == 48,
     "Attenuation offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::Light, SpotDirection) == 64,
+    "SpotDirection offset must match HLSL.");
+
+static_assert(
+    offsetof(ShaderPhong::Light, SpotConeFalloff) == 80,
+    "SpotConeFalloff offset must match HLSL.");
 
 static_assert(
     sizeof(ShaderPhong::CB_Phong) == 512,
@@ -147,13 +178,13 @@ static_assert(
     "Light offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 304,
+    offsetof(ShaderPhong::CB_Phong, CameraPosition) == 336,
     "CameraPosition offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 320,
+    offsetof(ShaderPhong::CB_Phong, IsLightCube) == 352,
     "IsLightCube offset must match HLSL.");
 
 static_assert(
-    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 324,
+    offsetof(ShaderPhong::CB_Phong, UseSpecularMap) == 356,
     "UseSpecularMap offset must match HLSL.");

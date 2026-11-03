@@ -17,9 +17,17 @@ struct Light
 
     float4 Color;
 
-    // X = constant, Y = linear, Z = quadratic.
     float3 ConstLinQuad;
     float Padding1;
+
+    // Direction from the light source toward the scene.
+    float3 SpotDirection;
+    float Padding2;
+
+    // X = cone half-angle in radians.
+    // Y = falloff exponent.
+    float2 SpotConeFalloff;
+    float2 Padding3;
 };
 
 cbuffer SceneData : register(b0)
@@ -83,7 +91,6 @@ PSInput VSMain(VSInput input)
 
 float4 PSMain(PSInput input) : SV_TARGET
 {
-    // The light marker itself does not fade.
     if (IsLightCube != 0)
     {
         return material.DiffuseColor;
@@ -92,22 +99,58 @@ float4 PSMain(PSInput input) : SV_TARGET
     float4 diffuseSample =
         g_diffuse.Sample(g_sampler, input.uv);
 
-    float3 specularSample = float3(1.0f, 1.0f, 1.0f);
+    float3 baseColor =
+        diffuseSample.rgb * material.DiffuseColor.rgb;
 
-    if (UseSpecularMap != 0)
-    {
-        specularSample =
-            g_specular.Sample(g_sampler, input.uv).rgb;
-    }
+    float3 ambient =
+        baseColor * light.AmbientColor.rgb;
 
-    float3 normal = SafeNormalize(input.normal);
+    float alpha =
+        diffuseSample.a * material.DiffuseColor.a;
 
+    // Direction from the surface toward the light source.
     float3 lightOffset =
         light.Position - input.worldPosition;
 
     float distanceToLight = length(lightOffset);
 
-    float3 lightDirection = SafeNormalize(lightOffset);
+    float3 lightDirection =
+        SafeNormalize(lightOffset);
+
+    // Spotlight direction points outward from the light.
+    float3 spotDirection =
+        SafeNormalize(light.SpotDirection);
+
+    float cosTheta =
+        dot(spotDirection, -lightDirection);
+
+    float cosCutoff =
+        cos(light.SpotConeFalloff.x);
+
+    // Outside the cone: ambient lighting only.
+    if (cosTheta <= cosCutoff)
+    {
+        return float4(saturate(ambient), alpha);
+    }
+
+    // Smooth cone falloff, following the slide formula.
+    float ratio = saturate(
+        cosCutoff / max(cosTheta, 0.000001f));
+
+    float spotFactor =
+        1.0f - pow(
+            ratio,
+            max(light.SpotConeFalloff.y, 1.0f));
+
+    float attenuationDenominator =
+        light.ConstLinQuad.x
+        + light.ConstLinQuad.y * distanceToLight
+        + light.ConstLinQuad.z * distanceToLight * distanceToLight;
+
+    float distanceFactor =
+        1.0f / max(attenuationDenominator, 0.000001f);
+
+    float3 normal = SafeNormalize(input.normal);
 
     float3 viewDirection =
         SafeNormalize(CameraPosition.xyz - input.worldPosition);
@@ -127,20 +170,13 @@ float4 PSMain(PSInput input) : SV_TARGET
             max(material.SpecularPower, 1.0f));
     }
 
-    float attenuationDenominator =
-        light.ConstLinQuad.x
-        + light.ConstLinQuad.y * distanceToLight
-        + light.ConstLinQuad.z * distanceToLight * distanceToLight;
+    float3 specularSample = float3(1.0f, 1.0f, 1.0f);
 
-    float attenuation =
-        1.0f / max(attenuationDenominator, 0.000001f);
-
-    float3 baseColor =
-        diffuseSample.rgb * material.DiffuseColor.rgb;
-
-    // Ambient remains visible even far from the point light.
-    float3 ambient =
-        baseColor * light.AmbientColor.rgb;
+    if (UseSpecularMap != 0)
+    {
+        specularSample =
+            g_specular.Sample(g_sampler, input.uv).rgb;
+    }
 
     float3 diffuse =
         baseColor
@@ -154,11 +190,9 @@ float4 PSMain(PSInput input) : SV_TARGET
         * material.SpecularStrength
         * specularAmount;
 
-    // Distance attenuation affects diffuse and specular lighting.
     float3 finalColor =
-        ambient + (diffuse + specular) * attenuation;
+        ambient
+        + (diffuse + specular) * distanceFactor * spotFactor;
 
-    return float4(
-        saturate(finalColor),
-        diffuseSample.a * material.DiffuseColor.a);
+    return float4(saturate(finalColor), alpha);
 }

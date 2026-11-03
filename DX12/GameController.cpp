@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <cwchar>
 #include <memory>
 #include <random>
@@ -19,7 +20,7 @@ namespace
     constexpr int CUBE_COUNT = 100;
     constexpr int COLUMNS = 10;
 
-    const XMFLOAT3 LIGHT_START(0.0f, 3.0f, -3.0f);
+    const XMFLOAT3 LIGHT_START(0.0f, 2.0f, -6.0f);
 
     const wchar_t* DIFFUSE_TEXTURE =
         L"..\\Assets\\Textures\\MetalFrameWood.dds";
@@ -201,10 +202,13 @@ void GameController::Run()
     float linear = 0.09f;
     float quadratic = 0.032f;
 
-    bool specularMapEnabled = true;
+    float yawDegrees = 0.0f;
+    float pitchDegrees = -14.0f;
 
-    cubeShader.SetAttenuation(constant, linear, quadratic);
-    cubeShader.SetUseSpecularMap(specularMapEnabled);
+    float coneDegrees = 25.0f;
+    float falloff = 32.0f;
+
+    bool specularMapEnabled = true;
 
     const XMVECTOR cameraPosition =
         XMVectorSet(0.0f, 3.0f, -20.0f, 1.0f);
@@ -237,9 +241,10 @@ void GameController::Run()
             swprintf_s(
                 title,
                 _countof(title),
-                L"Task 3 | Point Light | "
-                L"Kc %.2f  Kl %.3f  Kq %.3f | "
-                L"Map %ls | Q/A W/S E/D | 3/4/5: presets",
+                L"Task 4 | Spotlight | Half-angle %.1f | Falloff %.1f | "
+                L"Kc %.2f Kl %.3f Kq %.3f | Map %ls",
+                static_cast<double>(coneDegrees),
+                static_cast<double>(falloff),
                 static_cast<double>(constant),
                 static_cast<double>(linear),
                 static_cast<double>(quadratic),
@@ -297,6 +302,7 @@ void GameController::Run()
         if (pressed(VK_ESCAPE))
             break;
 
+        // Move the light source.
         auto lightPosition = lightMarker.GetPosition();
 
         const float movement = 4.0f * deltaTime;
@@ -313,16 +319,39 @@ void GameController::Run()
             (float(pressed('X'))
                 - float(pressed('Z'))) * movement;
 
-        if (pressed('R'))
-            lightPosition = LIGHT_START;
+        // Rotate the spotlight direction.
+        const float turnSpeed = 40.0f * deltaTime;
 
-        if (pressed('1'))
-            specularMapEnabled = false;
+        yawDegrees +=
+            (float(pressed('L')) - float(pressed('J')))
+            * turnSpeed;
 
-        if (pressed('2'))
-            specularMapEnabled = true;
+        pitchDegrees +=
+            (float(pressed('I')) - float(pressed('K')))
+            * turnSpeed;
 
-        // Hold these keys to change individual coefficients.
+        pitchDegrees =
+            (std::clamp)(pitchDegrees, -85.0f, 85.0f);
+
+        // Keep yaw bounded without limiting rotation.
+        yawDegrees = std::remainder(yawDegrees, 360.0f);
+
+        // U narrows the cone, O widens it.
+        coneDegrees +=
+            (float(pressed('O')) - float(pressed('U')))
+            * 20.0f * deltaTime;
+
+        coneDegrees =
+            (std::clamp)(coneDegrees, 5.0f, 80.0f);
+
+        // T increases falloff, G decreases it.
+        falloff +=
+            (float(pressed('T')) - float(pressed('G')))
+            * 40.0f * deltaTime;
+
+        falloff = (std::clamp)(falloff, 1.0f, 256.0f);
+
+        // Distance attenuation controls from Task 3.
         constant +=
             (float(pressed('Q')) - float(pressed('A')))
             * 0.75f * deltaTime;
@@ -339,7 +368,13 @@ void GameController::Run()
         linear = (std::max)(linear, 0.0f);
         quadratic = (std::max)(quadratic, 0.0f);
 
-        // No distance attenuation.
+        if (pressed('1'))
+            specularMapEnabled = false;
+
+        if (pressed('2'))
+            specularMapEnabled = true;
+
+        // Disable distance fading, but keep the spotlight cone.
         if (pressed('3'))
         {
             constant = 1.0f;
@@ -347,7 +382,6 @@ void GameController::Run()
             quadratic = 0.0f;
         }
 
-        // Default attenuation.
         if (pressed('4'))
         {
             constant = 1.0f;
@@ -355,7 +389,6 @@ void GameController::Run()
             quadratic = 0.032f;
         }
 
-        // Strong attenuation.
         if (pressed('5'))
         {
             constant = 1.0f;
@@ -363,11 +396,40 @@ void GameController::Run()
             quadratic = 0.12f;
         }
 
+        // Reset position, direction and cone settings.
+        if (pressed('R'))
+        {
+            lightPosition = LIGHT_START;
+            yawDegrees = 0.0f;
+            pitchDegrees = -14.0f;
+            coneDegrees = 25.0f;
+            falloff = 32.0f;
+        }
+
+        const float yaw =
+            XMConvertToRadians(yawDegrees);
+
+        const float pitch =
+            XMConvertToRadians(pitchDegrees);
+
+        const XMFLOAT3 spotDirection(
+            std::sin(yaw) * std::cos(pitch),
+            std::sin(pitch),
+            std::cos(yaw) * std::cos(pitch));
+
         lightMarker.SetPosition(lightPosition);
 
         cubeShader.SetLightPosition(lightPosition);
+        cubeShader.SetSpotDirection(spotDirection);
+        cubeShader.SetSpotConeAngle(coneDegrees);
+        cubeShader.SetSpotFalloff(falloff);
+
+        cubeShader.SetAttenuation(
+            constant,
+            linear,
+            quadratic);
+
         cubeShader.SetUseSpecularMap(specularMapEnabled);
-        cubeShader.SetAttenuation(constant, linear, quadratic);
 
         titleTimer += deltaTime;
 
